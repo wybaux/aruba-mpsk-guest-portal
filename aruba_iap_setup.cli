@@ -1,0 +1,74 @@
+! =============================================================================
+! CONFIGURATION TEMPLATE - ARUBA INSTANT AP (IAP)
+! Solution : Wi-Fi Invités MPSK avec Contrôle de Débit par Utilisateur
+! Fichier anonymisé prêt pour déploiement en entreprise / homelab
+! =============================================================================
+
+! Variables à adapter selon votre infrastructure :
+! <VLAN_GUEST_ID>           : ID de votre VLAN Invités (ex: 190, 200, etc.)
+! <SSID_NAME>               : Nom diffusé de votre réseau Wi-Fi Invités (ex: Societe-Guest)
+! <MPSK_PROFILE_NAME>       : Nom du profil MPSK local (ex: MPSK_GUEST)
+
+conf t
+
+! -----------------------------------------------------------------------------
+! 1. Création du conteneur de clés MPSK Local
+! -----------------------------------------------------------------------------
+wlan mpsk-local MPSK_GUEST
+
+! -----------------------------------------------------------------------------
+! 2. Définition des Rôles & Contrats de Bande Passante (Traffic Shaper ASIC)
+! -----------------------------------------------------------------------------
+! Profil Standard : 10 Mbps Downstream / 10 Mbps Upstream par utilisateur
+wlan access-rule Guest-Standard
+ vlan <VLAN_GUEST_ID>
+ bandwidth-limit peruser downstream 10000
+ bandwidth-limit peruser upstream 10000
+ rule any any match any any any permit
+
+! Profil Streaming / Télétravail : 50 Mbps Downstream / 50 Mbps Upstream par utilisateur
+wlan access-rule Guest-Streaming
+ vlan <VLAN_GUEST_ID>
+ bandwidth-limit peruser downstream 50000
+ bandwidth-limit peruser upstream 50000
+ rule any any match any any any permit
+
+! Profil VIP / Illimité : Débit maximal sans aucune restriction
+wlan access-rule Guest-VIP
+ vlan <VLAN_GUEST_ID>
+ rule any any match any any any permit
+
+! -----------------------------------------------------------------------------
+! 3. Configuration du SSID Wi-Fi Invité avec chiffrement MPSK
+! -----------------------------------------------------------------------------
+wlan ssid-profile <SSID_NAME>
+ enable
+ type guest
+ essid <SSID_NAME>
+ opmode mpsk-local
+ mpsk-local MPSK_GUEST
+ vlan <VLAN_GUEST_ID>
+ broadcast-filter all
+ dtim-period 1
+ inact-def-timeout 0
+ max-authentication-failures 0
+
+exit
+exit
+
+! -----------------------------------------------------------------------------
+! 4. Application & Sauvegarde immédiate dans la mémoire Flash du contrôleur
+! -----------------------------------------------------------------------------
+commit apply
+
+! =============================================================================
+! COMMANDES DE VÉRIFICATION & DIAGNOSTIC
+! =============================================================================
+! Afficher la configuration MPSK active :
+! show running-config | include mpsk
+!
+! Afficher les contrats de bande passante alloués dans le processeur réseau (Datapath) :
+! show datapath bwm
+!
+! Afficher les clients connectés et leurs rôles attribués :
+! show clients

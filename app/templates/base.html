@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ app_title }}{% endblock %}</title>
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        neutral: {
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            150: '#EAEBED',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#090A0C',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Ambient smooth rendering */
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            background-color: #FAFAFA;
+            color: #111827;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Subtle geometric background grid */
+        .bg-grid-pattern {
+            background-size: 32px 32px;
+            background-image: 
+                linear-gradient(to right, rgba(0, 0, 0, 0.025) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 0, 0, 0.025) 1px, transparent 1px);
+        }
+
+        /* Print styles */
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white !important; color: black !important; }
+            .card-print { border: 1px solid #E5E7EB !important; box-shadow: none !important; }
+        }
+
+        /* Custom ticket cutouts */
+        .ticket-cutout-left, .ticket-cutout-right {
+            width: 20px;
+            height: 20px;
+            background-color: #FAFAFA;
+            border-radius: 9999px;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .ticket-cutout-left { left: -10px; }
+        .ticket-cutout-right { right: -10px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#FAFAFA] bg-grid-pattern text-neutral-900 selection:bg-neutral-900 selection:text-white">
+
+    <!-- Header Navigation (Clean White Minimalist) -->
+    <header class="border-b border-neutral-200/70 bg-white/80 backdrop-blur-md sticky top-0 z-40 no-print transition-all">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 h-18 py-4 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <a href="/" class="group flex items-center gap-3 transition">
+                <div class="w-10 h-10 rounded-2xl bg-neutral-950 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform duration-200">
+                    <i data-lucide="wifi" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <span class="font-bold text-base tracking-tight text-neutral-900 block leading-tight">Wi-Fi Invités</span>
+                    <span class="text-[11px] font-medium text-neutral-400 block tracking-normal">Homelab Network</span>
+                </div>
+            </a>
+
+            <!-- Right Controls: Status & Admin Login Button -->
+            <div class="flex items-center gap-3">
+                <!-- Live Network Status Pill -->
+                <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100 border border-neutral-200/80 text-[11px] font-medium text-neutral-600">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>SSID: <strong class="text-neutral-900 font-semibold">{{ ssid }}</strong></span>
+                </div>
+
+                <!-- Admin Action Button -->
+                <div id="adminHeaderControls">
+                    <button type="button" onclick="openAdminModal()" id="btnAdminLogin"
+                            class="px-3.5 py-1.5 rounded-full bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200 hover:border-neutral-300 text-xs font-semibold shadow-2xs hover:shadow-xs transition flex items-center gap-2">
+                        <i data-lucide="lock" class="w-3.5 h-3.5 text-neutral-500"></i>
+                        <span>Connexion Admin</span>
+                    </button>
+                    <div id="adminLoggedInBadge" class="hidden flex items-center gap-2">
+                        <span class="px-3 py-1 rounded-full bg-neutral-900 text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
+                            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                            <span>Admin</span>
+                        </span>
+                        <button type="button" onclick="adminLogout()" title="Déconnexion admin"
+                                class="p-1.5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 hover:text-neutral-800 transition">
+                            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-10 sm:py-14">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Clean Minimalist Footer -->
+    <footer class="border-t border-neutral-200/60 py-8 text-center text-xs text-neutral-400 no-print">
+        <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-neutral-300"></span>
+                <span>Aruba Instant AP-305 &bull; Authentification MPSK Dynamique</span>
+            </div>
+            <p class="flex items-center gap-1.5 text-neutral-500">
+                <i data-lucide="shield" class="w-3.5 h-3.5 text-emerald-600"></i> VLAN Isolé &amp; Révocation Automatique
+            </p>
+        </div>
+    </footer>
+
+    <!-- Admin Login Modal (Pure White Minimalist) -->
+    <div id="adminModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+        <div class="bg-white border border-neutral-200/80 rounded-3xl p-8 max-w-sm w-full shadow-2xl relative transform transition-all scale-95" id="adminModalCard">
+            <!-- Close Button -->
+            <button type="button" onclick="closeAdminModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Modal Content -->
+            <div class="w-12 h-12 rounded-2xl bg-neutral-100 border border-neutral-200/60 flex items-center justify-center text-neutral-900 mb-4">
+                <i data-lucide="shield-alert" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-bold text-neutral-900 tracking-tight">Espace Administrateur</h3>
+            <p class="text-xs text-neutral-500 mt-1 mb-6">Connectez-vous pour visualiser et révoquer les accès Wi-Fi invités en cours.</p>
+
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                <div>
+                    <label for="admin_password" class="block text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-2">
+                        Mot de passe administrateur
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="admin_password" required placeholder="Entrez le mot de passe"
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 text-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                        <button type="button" onclick="togglePasswordVisibility('admin_password')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-700">
+                            <i data-lucide="eye" class="w-4 h-4" id="admin_password_icon"></i>
+                        </button>
+                    </div>
+                    <p id="adminLoginError" class="text-xs text-rose-500 font-medium mt-1.5 hidden flex items-center gap-1">
+                        <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Mot de passe incorrect
+                    </p>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeAdminModal()"
+                            class="flex-1 py-2.5 px-4 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                        Annuler
+                    </button>
+                    <button type="submit" id="btnAdminSubmit"
+                            class="flex-1 py-2.5 px-4 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                        <span>Valider</span>
+                        <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white px-4 py-2.5 rounded-2xl shadow-xl border border-neutral-800 text-xs font-medium flex items-center gap-2 transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none">
+        <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toastText">Action effectuée</span>
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Toast Helper
+        function showToast(text) {
+            const toast = document.getElementById('toastNotification');
+            const toastText = document.getElementById('toastText');
+            toastText.textContent = text;
+            toast.classList.remove('translate-y-16', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-16', 'opacity-0');
+            }, 3000);
+        }
+
+        // Toggle Password Input Visibility
+        function togglePasswordVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(inputId + '_icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        // Admin State Management
+        function isAdminLoggedIn() {
+            return sessionStorage.getItem('wifi_guest_admin') === 'true';
+        }
+
+        function updateAdminUI() {
+            const isLoggedIn = isAdminLoggedIn();
+            const btnLogin = document.getElementById('btnAdminLogin');
+            const badgeLoggedIn = document.getElementById('adminLoggedInBadge');
+            const adminSection = document.getElementById('adminDashboardSection');
+            const guestTabs = document.getElementById('portalTabs');
+
+            if (isLoggedIn) {
+                if (btnLogin) btnLogin.classList.add('hidden');
+                if (badgeLoggedIn) badgeLoggedIn.classList.remove('hidden');
+                if (guestTabs) guestTabs.classList.remove('hidden');
+            } else {
+                if (btnLogin) btnLogin.classList.remove('hidden');
+                if (badgeLoggedIn) badgeLoggedIn.classList.add('hidden');
+                if (guestTabs) guestTabs.classList.add('hidden');
+                if (adminSection) adminSection.classList.add('hidden');
+                const formSection = document.getElementById('guestFormSection');
+                if (formSection) formSection.classList.remove('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        function openAdminModal() {
+            const modal = document.getElementById('adminModal');
+            const card = document.getElementById('adminModalCard');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                card.classList.remove('scale-95');
+                document.getElementById('admin_password').focus();
+            }, 10);
+        }
+
+        function closeAdminModal() {
+            const modal = document.getElementById('adminModal');
+            const card = document.getElementById('adminModalCard');
+            modal.classList.add('opacity-0');
+            card.classList.add('scale-95');
+            document.getElementById('adminLoginError').classList.add('hidden');
+            document.getElementById('admin_password').value = '';
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        async function handleAdminLogin(e) {
+            e.preventDefault();
+            const password = document.getElementById('admin_password').value;
+            const errorElem = document.getElementById('adminLoginError');
+            const btnSubmit = document.getElementById('btnAdminSubmit');
+
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span>Connexion...</span>';
+
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                });
+
+                if (res.ok) {
+                    sessionStorage.setItem('wifi_guest_admin', 'true');
+                    closeAdminModal();
+                    updateAdminUI();
+                    showToast('Connecté en mode Administrateur');
+                    // Switch to admin tab if present
+                    if (typeof switchTab === 'function') {
+                        switchTab('admin');
+                    }
+                } else {
+                    errorElem.classList.remove('hidden');
+                    lucide.createIcons();
+                }
+            } catch (err) {
+                errorElem.textContent = 'Erreur réseau';
+                errorElem.classList.remove('hidden');
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<span>Valider</span><i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>';
+                lucide.createIcons();
+            }
+        }
+
+        function adminLogout() {
+            sessionStorage.removeItem('wifi_guest_admin');
+            updateAdminUI();
+            showToast('Déconnecté du mode Administrateur');
+            if (typeof switchTab === 'function') {
+                switchTab('guest');
+            }
+        }
+
+        // Auto update admin state on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateAdminUI();
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

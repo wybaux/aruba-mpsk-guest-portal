@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  wifi-guest:
+    build: .
+    container_name: wifi-guest-manager
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./active_passes.json:/app/active_passes.json
+    environment:
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000

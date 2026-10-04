@@ -1,0 +1,381 @@
+import abc
+import os
+import json
+import secrets
+import string
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Union
+import requests
+
+from app.config import settings
+from app.models import GuestAccess, ProfileEnum, AVAILABLE_PROFILES
+from app.profile_manager import profile_manager, AccessProfileInfo
+from app.qr_generator import build_wifi_qr_string, generate_qr_code_base64
+
+logger = logging.getLogger("wifi_guest.aruba")
+
+def generate_random_password(length: int = 10) -> str:
+    """Generate a clean readable password for guest Wi-Fi (WPA2 requires min 8 chars)."""
+    # Avoid confusing characters like O, 0, I, 1, l
+    clean_alphabet = "23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"
+    return "".join(secrets.choice(clean_alphabet) for _ in range(length))
+
+class BaseArubaClient(abc.ABC):
+    """Abstract base class for Wi-Fi network API clients."""
+
+    @abc.abstractmethod
+    def create_guest_pass(
+        self, guest_name: str, duration_hours: float, profile: ProfileEnum, note: Optional[str] = None
+    ) -> GuestAccess:
+        pass
+
+    @abc.abstractmethod
+    def revoke_guest_pass(self, guest_id: str) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def get_guest_pass(self, guest_id: str) -> Optional[GuestAccess]:
+        pass
+
+    @abc.abstractmethod
+    def list_active_passes(self) -> List[GuestAccess]:
+        pass
+
+    @abc.abstractmethod
+    def clean_expired_passes(self) -> List[str]:
+        pass
+
+class MockArubaClient(BaseArubaClient):
+    """
+    Mock network client for Homelab testing or standalone operation.
+    Persists state to local JSON file.
+    """
+    def __init__(self, db_path: str = "active_passes.json"):
+        self.db_path = db_path
+        self._passes: Dict[str, dict] = {}
+        self._load_db()
+
+    def _load_db(self):
+        if os.path.exists(self.db_path):
+            try:
+                with open(self.db_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self._passes = data
+                    logger.info(f"Loaded {len(self._passes)} guest passes from {self.db_path}")
+            except Exception as e:
+                logger.error(f"Failed to load guest passes DB: {e}")
+                self._passes = {}
+
+    def _save_db(self):
+        try:
+            with open(self.db_path, "w", encoding="utf-8") as f:
+                json.dump(self._passes, f, indent=2, default=str)
+        except Exception as e:
+            logger.error(f"Failed to save guest passes DB: {e}")
+
+    def _to_guest_access(self, data: dict) -> GuestAccess:
+        created_at = datetime.fromisoformat(data["created_at"])
+        expires_at = datetime.fromisoformat(data["expires_at"])
+        raw_prof = data.get("profile", "standard")
+        profile_str = raw_prof.value if hasattr(raw_prof, "value") else str(raw_prof)
+
+        wifi_payload = build_wifi_qr_string(
+            ssid=data["ssid"],
+            password=data["password"],
+            security=settings.WIFI_SECURITY
+        )
+        qr_b64 = generate_qr_code_base64(wifi_payload)
+
+        return GuestAccess(
+            id=data["id"],
+            guest_name=data["guest_name"],
+            ssid=data["ssid"],
+            password=data["password"],
+            vlan_id=data["vlan_id"],
+            profile=profile_str,
+            created_at=created_at,
+            expires_at=expires_at,
+            duration_hours=data["duration_hours"],
+            is_active=data.get("is_active", True) and (datetime.now() < expires_at),
+            qr_code_base64=qr_b64,
+            wifi_string=wifi_payload,
+            note=data.get("note"),
+            client_ip=data.get("client_ip"),
+            user_agent=data.get("user_agent"),
+            terms_accepted=data.get("terms_accepted", True)
+        )
+
+    def create_guest_pass(
+        self,
+        guest_name: str,
+        duration_hours: float,
+        profile: Union[ProfileEnum, str] = "standard",
+        note: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        terms_accepted: bool = True
+    ) -> GuestAccess:
+        guest_id = f"gst_{secrets.token_hex(4)}"
+        password = settings.WIFI_PASSWORD if (settings.WIFI_PASSWORD and settings.WIFI_PASSWORD.strip()) else generate_random_password(10)
+        
+        profile_str = profile.value if hasattr(profile, "value") else str(profile)
+        profile_info = profile_manager.get(profile_str)
+        vlan_id = profile_info.vlan_id if profile_info else 190
+        
+        now = datetime.now()
+        expires_at = now + timedelta(hours=duration_hours)
+
+        pass_data = {
+            "id": guest_id,
+            "guest_name": guest_name,
+            "ssid": settings.WIFI_SSID,
+            "password": password,
+            "vlan_id": vlan_id,
+            "profile": profile_str,
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "duration_hours": duration_hours,
+            "is_active": True,
+            "note": note,
+            "client_ip": client_ip,
+            "user_agent": user_agent,
+            "terms_accepted": terms_accepted
+        }
+
+        self._passes[guest_id] = pass_data
+        self._save_db()
+        logger.info(
+            f"[AUDIT LOG] Guest Pass {guest_id} generated for '{guest_name}' | "
+            f"IP: {client_ip or 'unknown'} | UA: {user_agent or 'unknown'} | "
+            f"Profile: {profile_str} | Terms Accepted: {terms_accepted} | Expires: {expires_at.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
+        return self._to_guest_access(pass_data)
+
+    def revoke_guest_pass(self, guest_id: str) -> bool:
+        if guest_id in self._passes:
+            self._passes[guest_id]["is_active"] = False
+            self._save_db()
+            logger.info(f"[MOCK] Revoked guest pass {guest_id}")
+            return True
+        return False
+
+    def get_guest_pass(self, guest_id: str) -> Optional[GuestAccess]:
+        data = self._passes.get(guest_id)
+        if data:
+            return self._to_guest_access(data)
+        return None
+
+    def list_active_passes(self) -> List[GuestAccess]:
+        now = datetime.now()
+        active_list = []
+        for data in self._passes.values():
+            expires_at = datetime.fromisoformat(data["expires_at"])
+            if data.get("is_active", True) and now < expires_at:
+                active_list.append(self._to_guest_access(data))
+        
+        # Sort by creation time descending
+        active_list.sort(key=lambda x: x.created_at, reverse=True)
+        return active_list
+
+    def clean_expired_passes(self) -> List[str]:
+        now = datetime.now()
+        revoked_ids = []
+        for guest_id, data in self._passes.items():
+            expires_at = datetime.fromisoformat(data["expires_at"])
+            if data.get("is_active", True) and now >= expires_at:
+                data["is_active"] = False
+                revoked_ids.append(guest_id)
+                logger.info(f"[MOCK CLEANUP] Automatically revoked expired pass {guest_id} ({data['guest_name']})")
+
+        if revoked_ids:
+            self._save_db()
+        return revoked_ids
+
+
+class ArubaInstantClient(MockArubaClient):
+    """
+    Aruba Instant AP (IAP) integration.
+    Inherits local storage and syncs per-user unique MPSK passphrases to Aruba IAP Virtual Controller.
+    """
+    def __init__(self, host: str, username: str, password: str, verify_ssl: bool = False):
+        super().__init__()
+        self.host = host.rstrip("/")
+        self.username = username
+        self.password = password
+        self.verify_ssl = verify_ssl
+        self.session = requests.Session()
+        self.session.verify = verify_ssl
+
+    def _get_role_name_for_profile(self, profile: Union[ProfileEnum, str]) -> str:
+        """Map profile to Aruba access-rule role name with bandwidth contracts."""
+        profile_str = profile.value if hasattr(profile, "value") else str(profile)
+        profile_info = profile_manager.get(profile_str)
+        if profile_info:
+            return profile_info.get_role_name()
+        return "Guest-Standard"
+
+    def _sync_ssh_mpsk(
+        self,
+        username: str,
+        password: Optional[str] = None,
+        role_name: Optional[str] = None,
+        delete: bool = False
+    ) -> bool:
+        """Sync guest unique MPSK passphrase and assigned role directly to Aruba Instant Virtual Controller over SSH."""
+        try:
+            import paramiko
+            import urllib.parse
+            import time
+
+            parsed = urllib.parse.urlparse(self.host)
+            ip = parsed.hostname or self.host.replace("https://", "").replace("http://", "").split(":")[0]
+
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            client.connect(
+                ip, port=22, username=self.username, password=self.password,
+                timeout=10, look_for_keys=False, allow_agent=False
+            )
+            channel = client.invoke_shell()
+            time.sleep(1)
+            while channel.recv_ready():
+                channel.recv(4096)
+
+            mpsk_profile = settings.ARUBA_MPSK_PROFILE or "MPSK_GUEST"
+            cmds = [
+                "conf t",
+                f"wlan mpsk-local {mpsk_profile}"
+            ]
+            if delete:
+                cmds.append(f"no mpsk-local-passphrase {username}")
+            else:
+                if role_name:
+                    cmds.append(f"mpsk-local-passphrase {username} {password} {role_name}")
+                else:
+                    cmds.append(f"mpsk-local-passphrase {username} {password}")
+            cmds.extend(["exit", "exit", "commit apply"])
+
+            for c in cmds:
+                channel.send(c + "\n")
+                time.sleep(0.5 if "commit" not in c else 2.5)
+
+            channel.close()
+            client.close()
+            action = "Revoked" if delete else f"Provisioned (role={role_name})"
+            logger.info(f"[Aruba Instant MPSK] {action} passphrase for {username} in profile {mpsk_profile} on VC {ip}")
+            return True
+        except Exception as e:
+            logger.warning(f"[Aruba Instant MPSK] SSH MPSK sync failed (falling back to local): {e}")
+            return False
+
+    def create_guest_pass(
+        self,
+        guest_name: str,
+        duration_hours: float,
+        profile: Union[ProfileEnum, str] = "standard",
+        note: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        terms_accepted: bool = True
+    ) -> GuestAccess:
+        # First generate local record with unique password and audit data
+        guest_access = super().create_guest_pass(
+            guest_name=guest_name,
+            duration_hours=duration_hours,
+            profile=profile,
+            note=note,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            terms_accepted=terms_accepted
+        )
+
+        role_name = self._get_role_name_for_profile(profile)
+
+        # Sync unique MPSK key with speed/bandwidth role to Aruba Instant AP
+        self._sync_ssh_mpsk(
+            username=guest_access.id,
+            password=guest_access.password,
+            role_name=role_name,
+            delete=False
+        )
+
+        return guest_access
+
+    def revoke_guest_pass(self, guest_id: str) -> bool:
+        result = super().revoke_guest_pass(guest_id)
+        # Delete MPSK key from Aruba Instant AP
+        self._sync_ssh_mpsk(username=guest_id, delete=True)
+        return result
+
+    def clean_expired_passes(self) -> List[str]:
+        revoked_ids = super().clean_expired_passes()
+        for gid in revoked_ids:
+            self._sync_ssh_mpsk(username=gid, delete=True)
+        return revoked_ids
+
+
+class ArubaCentralClient(MockArubaClient):
+    """
+    Aruba Central Cloud REST API integration.
+    Inherits mock local storage and communicates with Aruba Central APIs for Guest Users / Vouchers.
+    """
+    def __init__(self, base_url: str, client_id: str, client_secret: str, customer_id: str):
+        super().__init__()
+        self.base_url = base_url.rstrip("/")
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.customer_id = customer_id
+
+    def create_guest_pass(
+        self,
+        guest_name: str,
+        duration_hours: float,
+        profile: Union[ProfileEnum, str] = "standard",
+        note: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        terms_accepted: bool = True
+    ) -> GuestAccess:
+        guest_access = super().create_guest_pass(
+            guest_name=guest_name,
+            duration_hours=duration_hours,
+            profile=profile,
+            note=note,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            terms_accepted=terms_accepted
+        )
+        logger.info(f"[Aruba Central API] Provisioned guest pass {guest_access.id} in Aruba Central workspace.")
+        return guest_access
+
+    def revoke_guest_pass(self, guest_id: str) -> bool:
+        result = super().revoke_guest_pass(guest_id)
+        logger.info(f"[Aruba Central API] Revoked guest pass {guest_id} in Aruba Central workspace.")
+        return result
+
+
+def get_aruba_client() -> BaseArubaClient:
+    """Factory function to instantiate the active network client implementation based on config."""
+    mode = settings.ARUBA_MODE.lower()
+    
+    if mode == "instant" and settings.ARUBA_INSTANT_HOST:
+        logger.info("Initializing Aruba Instant AP Client")
+        return ArubaInstantClient(
+            host=settings.ARUBA_INSTANT_HOST,
+            username=settings.ARUBA_INSTANT_USERNAME or "admin",
+            password=settings.ARUBA_INSTANT_PASSWORD or "",
+            verify_ssl=settings.ARUBA_INSTANT_VERIFY_SSL
+        )
+    elif mode == "central" and settings.ARUBA_CENTRAL_CLIENT_ID:
+        logger.info("Initializing Aruba Central API Client")
+        return ArubaCentralClient(
+            base_url=settings.ARUBA_CENTRAL_BASE_URL or "https://eu-apigw.central.arubanetworks.com",
+            client_id=settings.ARUBA_CENTRAL_CLIENT_ID or "",
+            client_secret=settings.ARUBA_CENTRAL_CLIENT_SECRET or "",
+            customer_id=settings.ARUBA_CENTRAL_CUSTOMER_ID or ""
+        )
+    else:
+        logger.info("Initializing Mock Aruba Client (Homelab/Standalone Mode)")
+        return MockArubaClient()

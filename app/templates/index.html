@@ -1,0 +1,918 @@
+{% extends "base.html" %}
+
+{% block title %}Demande d'accès Wi-Fi - {{ app_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-8">
+
+    <!-- Admin Navigation Tabs (Only visible when Admin is logged in) -->
+    <div id="portalTabs" class="hidden flex items-center justify-center gap-1.5 p-1.5 bg-neutral-100/90 border border-neutral-200/80 rounded-2xl max-w-lg mx-auto no-print">
+        <button type="button" onclick="switchTab('guest')" id="tabBtnGuest"
+                class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-white text-neutral-900 shadow-2xs">
+            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+            <span>Nouvel Invité</span>
+        </button>
+        <button type="button" onclick="switchTab('admin')" id="tabBtnAdmin"
+                class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5">
+            <i data-lucide="users" class="w-3.5 h-3.5"></i>
+            <span>Actifs ({{ active_passes|length }})</span>
+        </button>
+        <button type="button" onclick="switchTab('profiles')" id="tabBtnProfiles"
+                class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5">
+            <i data-lucide="gauge" class="w-3.5 h-3.5"></i>
+            <span>Profils &amp; Débits</span>
+        </button>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 1. GUEST ACCESS REQUEST SECTION (Ultra-Clean, White, Minimalist)          -->
+    <!-- ========================================================================= -->
+    <section id="guestFormSection" class="transition-all duration-300">
+        <!-- Hero Header -->
+        <div class="text-center mb-8 sm:mb-10">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-100 border border-neutral-200/80 text-[11px] font-medium text-neutral-600 mb-4">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>Réseau : <strong class="text-neutral-900">{{ ssid }}</strong> &bull; MPSK Éphémère</span>
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-neutral-950 tracking-tight">Accès Wi-Fi Invité</h1>
+            <p class="text-sm text-neutral-500 mt-2 max-w-md mx-auto">
+                Renseignez votre nom et la durée souhaitée pour générer votre clé Wi-Fi personnelle et votre QR Code de connexion.
+            </p>
+        </div>
+
+        <!-- Form Card -->
+        <div class="bg-white border border-neutral-200/80 rounded-3xl p-6 sm:p-10 shadow-[0_4px_30px_rgba(0,0,0,0.03)] relative overflow-hidden">
+            <form action="/create" method="POST" class="space-y-6" id="createPassForm">
+                
+                <!-- Guest Name Input -->
+                <div>
+                    <label for="guest_name" class="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-2">
+                        Nom ou Prénom de l'invité
+                    </label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
+                            <i data-lucide="user" class="w-4 h-4"></i>
+                        </div>
+                        <input type="text" id="guest_name" name="guest_name" required autofocus
+                               placeholder="Ex: Sophie Martin, Thomas, Événement..."
+                               class="w-full pl-10 pr-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 placeholder-neutral-400 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                    </div>
+                </div>
+
+                <!-- Validity Duration Selector -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider">
+                            Durée d'accès
+                        </label>
+                        <span id="durationDisplay" class="text-xs font-semibold text-neutral-500 font-mono">2 heures</span>
+                    </div>
+
+                    <!-- Quick Pills -->
+                    <div class="grid grid-cols-5 gap-2 mb-3">
+                        <button type="button" onclick="selectDuration(1, this)" class="dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center">
+                            1h
+                        </button>
+                        <button type="button" onclick="selectDuration(2, this)" class="dur-pill active py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-900 bg-neutral-900 text-white transition text-center shadow-xs">
+                            2h
+                        </button>
+                        <button type="button" onclick="selectDuration(4, this)" class="dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center">
+                            4h
+                        </button>
+                        <button type="button" onclick="selectDuration(8, this)" class="dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center">
+                            8h
+                        </button>
+                        <button type="button" onclick="selectDuration(24, this)" class="dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center">
+                            24h
+                        </button>
+                    </div>
+
+                    <input type="hidden" id="duration_hours" name="duration_hours" value="2">
+                </div>
+
+                <!-- Access Profile (Dynamically defined by Admin) -->
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider">
+                            Profil de connexion &amp; Débit
+                        </label>
+                        <span class="text-[11px] text-neutral-400">Contrôle matériel AP</span>
+                    </div>
+                    
+                    <input type="hidden" name="profile_password" id="form_profile_password" value="">
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="profileSelectionGrid">
+                        {% for pid, p in profiles.items() %}
+                        <div class="profile-card relative flex flex-col p-4 rounded-2xl border cursor-pointer transition-all select-none {% if p.id == default_profile.id %}border-neutral-900 bg-neutral-50/50 shadow-2xs{% else %}border-neutral-200 bg-white hover:border-neutral-300{% endif %}"
+                             id="pcard_{{ p.id }}"
+                             onclick="onProfileCardClick(event, '{{ p.id }}', {{ 'true' if p.requires_password else 'false' }}, '{{ p.name|escape }}')">
+                            <input type="radio" name="profile" value="{{ p.id }}" 
+                                   id="radio_{{ p.id }}"
+                                   {% if p.id == default_profile.id %}checked{% endif %}
+                                   class="sr-only">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="w-8 h-8 rounded-xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-800 shadow-3xs">
+                                    {% if p.bandwidth_limit_mbps and p.bandwidth_limit_mbps <= 15 %}
+                                    <i data-lucide="globe" class="w-4 h-4"></i>
+                                    {% elif p.bandwidth_limit_mbps %}
+                                    <i data-lucide="play" class="w-4 h-4"></i>
+                                    {% else %}
+                                    <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    {% if p.is_default %}
+                                    <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">Par défaut</span>
+                                    {% elif p.requires_password %}
+                                    <span id="badge_lock_{{ p.id }}" class="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                                        <i data-lucide="lock" class="w-2.5 h-2.5"></i>
+                                        <span>Code requis</span>
+                                    </span>
+                                    {% endif %}
+                                    <span class="check-indicator w-4 h-4 rounded-full border flex items-center justify-center {% if p.id == default_profile.id %}border-neutral-900 bg-neutral-900 text-white{% else %}border-neutral-300 text-transparent{% endif %}">
+                                        <i data-lucide="check" class="w-2.5 h-2.5"></i>
+                                    </span>
+                                </div>
+                            </div>
+                            <span class="font-bold text-sm text-neutral-900 block leading-tight">{{ p.name }}</span>
+                            <span class="text-[11px] font-semibold text-neutral-600 mt-1 block">
+                                {% if p.bandwidth_limit_mbps %}
+                                    {{ p.bandwidth_limit_mbps }} Mbps
+                                {% else %}
+                                    Débit Illimité
+                                {% endif %}
+                            </span>
+                            <span class="text-[10px] text-neutral-400 mt-0.5 block leading-tight line-clamp-2">{{ p.description }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Optional Note -->
+                <div class="pt-1">
+                    <button type="button" onclick="toggleNoteField()" class="text-xs font-medium text-neutral-500 hover:text-neutral-900 transition flex items-center gap-1.5">
+                        <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                        <span id="noteToggleText">Ajouter une note ou un mémo (optionnel)</span>
+                    </button>
+                    <div id="noteContainer" class="hidden mt-2">
+                        <input type="text" id="note" name="note" placeholder="Ex: Salon, Téléphone pro, Soirée..."
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                    </div>
+                </div>
+
+                <!-- Terms of Use Acceptance & Legal Compliance -->
+                <div class="p-3.5 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-2">
+                    <div class="flex items-start gap-2.5">
+                        <input type="checkbox" id="terms_accepted" name="terms_accepted" checked required
+                               class="mt-0.5 rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
+                        <label for="terms_accepted" class="text-xs text-neutral-600 leading-snug cursor-pointer select-none">
+                            J'accepte et m'engage à respecter la 
+                            <button type="button" onclick="openCharterModal()" class="font-bold text-neutral-900 underline hover:text-neutral-700 decoration-neutral-400">
+                                Charte d'utilisation du réseau Wi-Fi
+                            </button> 
+                            (usage loyal et licite, interdiction d'activités illégales ou malveillantes).
+                        </label>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-[10px] text-neutral-400 pl-6">
+                        <i data-lucide="shield-alert" class="w-3 h-3 text-neutral-500"></i>
+                        <span>Traçabilité légale : Votre adresse IP et horodatage de connexion sont consignés conformément à la réglementation.</span>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="pt-2">
+                    <button type="submit" id="btnSubmitPass"
+                            class="w-full py-4 px-6 rounded-2xl bg-neutral-950 hover:bg-neutral-800 text-white font-semibold text-sm tracking-tight shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 group">
+                        <i data-lucide="qr-code" class="w-4 h-4 text-neutral-400 group-hover:text-white transition"></i>
+                        <span>Générer mon accès Wi-Fi</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 2. ADMIN DASHBOARD: ACTIVE PASSES LIST                                    -->
+    <!-- ========================================================================= -->
+    <section id="adminDashboardSection" class="hidden space-y-6 transition-all duration-300">
+        <!-- Overview Banner -->
+        <div class="bg-white border border-neutral-200/80 rounded-3xl p-6 sm:p-8 shadow-[0_4px_30px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-neutral-100 border border-neutral-200/80 flex items-center justify-center text-neutral-900">
+                    <i data-lucide="activity" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-neutral-900">Contrôleur Wi-Fi Instant AP</h2>
+                    <p class="text-xs text-neutral-500">SSID <strong class="text-neutral-900">{{ ssid }}</strong> &bull; Authentification MPSK Local active</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="px-4 py-2 rounded-2xl bg-neutral-50 border border-neutral-200/70 text-right">
+                    <span class="text-2xl font-extrabold text-neutral-900 leading-none">{{ active_passes|length }}</span>
+                    <span class="block text-[11px] font-medium text-neutral-500 mt-0.5">Accès actif{% if active_passes|length > 1 %}s{% endif %}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Passes List -->
+        <div class="space-y-4">
+            <div class="flex items-center justify-between px-1">
+                <h3 class="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4 text-neutral-500"></i>
+                    <span>Accès Invités en cours</span>
+                </h3>
+                <span class="text-xs text-neutral-400">Révocation automatique à expiration</span>
+            </div>
+
+            {% if active_passes %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for guest in active_passes %}
+                {% set p_info = profiles.get(guest.profile) %}
+                <div class="bg-white border border-neutral-200/80 rounded-2xl p-5 shadow-2xs hover:shadow-xs transition relative flex flex-col justify-between group">
+                    <div>
+                        <!-- Header: Name & Status -->
+                        <div class="flex items-start justify-between gap-2 mb-3">
+                            <div>
+                                <h4 class="font-bold text-base text-neutral-900 group-hover:text-neutral-700 transition">{{ guest.guest_name }}</h4>
+                                <div class="flex items-center gap-1.5 mt-0.5">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-700 border border-neutral-200">
+                                        {% if p_info %}{{ p_info.name }}{% else %}{{ guest.profile|capitalize }}{% endif %}
+                                        {% if p_info and p_info.bandwidth_limit_mbps %} &bull; {{ p_info.bandwidth_limit_mbps }}M{% else %} &bull; Max{% endif %}
+                                    </span>
+                                    {% if guest.note %}
+                                    <span class="text-[11px] text-neutral-400 italic">&ldquo;{{ guest.note }}&rdquo;</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <span class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                Actif
+                            </span>
+                        </div>
+
+                        <!-- Credentials & Expiration Box -->
+                        <div class="space-y-1.5 text-xs text-neutral-500 bg-neutral-50/80 p-3 rounded-xl border border-neutral-200/60 mb-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px]">Clé MPSK :</span>
+                                <div class="flex items-center gap-1.5">
+                                    <code class="font-mono text-xs font-bold text-neutral-800 bg-white px-1.5 py-0.5 rounded border border-neutral-200">{{ guest.password }}</code>
+                                    <button type="button" onclick="navigator.clipboard.writeText('{{ guest.password }}'); showToast('Clé Wi-Fi copiée !')"
+                                            class="text-neutral-400 hover:text-neutral-700 p-0.5">
+                                        <i data-lucide="copy" class="w-3 h-3"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px]">Expiration :</span>
+                                <strong class="text-neutral-700 text-[11px]">{{ guest.expires_at.strftime('%d/%m à %H:%M') }}</strong>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px]">Temps restant :</span>
+                                <span class="text-amber-600 font-semibold text-[11px]">
+                                    {% set mins = (guest.remaining_seconds / 60)|int %}
+                                    {% if mins > 60 %}
+                                        {{ (mins / 60)|int }}h {{ mins % 60 }}min
+                                    {% else %}
+                                        {{ mins }} min
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between pt-1 border-t border-neutral-200/50">
+                                <span class="text-[10px] text-neutral-400">IP source :</span>
+                                <span class="font-mono text-[10px] font-medium text-neutral-600 bg-white px-1.5 py-0.5 rounded border border-neutral-200">
+                                    {{ guest.client_ip or "Localhost" }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions Bottom Bar -->
+                    <div class="flex items-center gap-2 pt-3 border-t border-neutral-100">
+                        <a href="/guest/{{ guest.id }}" class="flex-1 py-2 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200/80 text-neutral-800 text-xs font-semibold text-center transition flex items-center justify-center gap-1.5">
+                            <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+                            <span>Voir le Pass</span>
+                        </a>
+                        <form action="/guest/{{ guest.id }}/revoke" method="POST" onsubmit="return confirm('Voulez-vous vraiment révoquer cet accès invité ?');">
+                            <button type="submit" title="Révoquer immédiatement sur l'AP"
+                                    class="py-2 px-3 rounded-xl bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-neutral-200 hover:border-rose-200 text-xs font-semibold transition flex items-center justify-center">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <!-- Empty State -->
+            <div class="text-center py-14 bg-white border border-neutral-200/80 rounded-3xl p-8">
+                <div class="w-12 h-12 rounded-2xl bg-neutral-100 text-neutral-400 mx-auto flex items-center justify-center mb-3">
+                    <i data-lucide="wifi-off" class="w-6 h-6"></i>
+                </div>
+                <h4 class="font-bold text-neutral-900 text-sm">Aucun accès invité actif</h4>
+                <p class="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">Toutes les clés temporaires créées apparaîtront ici avec leur durée de validité.</p>
+                <button type="button" onclick="switchTab('guest')" class="mt-4 px-4 py-2 rounded-xl bg-neutral-900 text-white text-xs font-semibold transition hover:bg-neutral-800">
+                    Créer un pass
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 3. ADMIN PROFILE MANAGEMENT SECTION                                      -->
+    <!-- ========================================================================= -->
+    <section id="adminProfilesSection" class="hidden space-y-6 transition-all duration-300">
+        <!-- Profile Manager Header Card -->
+        <div class="bg-white border border-neutral-200/80 rounded-3xl p-6 sm:p-8 shadow-[0_4px_30px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h2 class="text-base font-bold text-neutral-900 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-5 h-5 text-neutral-700"></i>
+                    <span>Profils d'Accès &amp; Contrôle de Bande Passante</span>
+                </h2>
+                <p class="text-xs text-neutral-500 mt-1">
+                    Chaque profil définit la limite de vitesse (Mbps) et le VLAN appliqués en temps réel par l'AP Aruba.
+                </p>
+            </div>
+            <button type="button" onclick="openProfileModal()"
+                    class="px-4 py-2.5 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-2">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>Nouveau Profil</span>
+            </button>
+        </div>
+
+        <!-- Profiles Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for pid, p in profiles.items() %}
+            <div class="bg-white border border-neutral-200/80 rounded-2xl p-5 shadow-2xs hover:shadow-xs transition flex flex-col justify-between">
+                <div>
+                    <!-- Header -->
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <div>
+                            <span class="font-mono text-[10px] text-neutral-400 font-semibold uppercase tracking-wider block">{{ p.id }}</span>
+                            <h3 class="font-bold text-base text-neutral-900">{{ p.name }}</h3>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-full bg-neutral-100 border border-neutral-200 text-xs font-bold text-neutral-800 font-mono flex items-center gap-1">
+                            <i data-lucide="gauge" class="w-3.5 h-3.5 text-neutral-500"></i>
+                            {% if p.bandwidth_limit_mbps %}
+                                {{ p.bandwidth_limit_mbps }} Mbps
+                            {% else %}
+                                Illimité
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-neutral-500 mb-4">{{ p.description }}</p>
+
+                    <!-- Technical Specs -->
+                    <div class="grid grid-cols-2 gap-2 text-xs bg-neutral-50 p-2.5 rounded-xl border border-neutral-200/70 mb-3">
+                        <div>
+                            <span class="text-[10px] text-neutral-400 uppercase font-semibold block">VLAN</span>
+                            <strong class="font-mono text-neutral-800">{{ p.vlan_id }}</strong>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-neutral-400 uppercase font-semibold block">Rôle AP</span>
+                            <strong class="font-mono text-neutral-800 text-[11px]">{{ p.get_role_name() }}</strong>
+                        </div>
+                    </div>
+
+                    <!-- Authorization Policy Badge -->
+                    <div class="mb-4">
+                        {% if p.is_default %}
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i>
+                            <span>Profil par défaut (Libre accès)</span>
+                        </span>
+                        {% elif p.requires_password %}
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold">
+                            <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-600"></i>
+                            <span>{% if p.access_password %}Code : <code class="font-mono text-neutral-900 bg-white px-1.5 py-0.5 rounded border border-amber-200">{{ p.access_password }}</code>{% else %}Réservé aux Admins{% endif %}</span>
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-700 border border-neutral-200 text-[11px] font-medium">
+                            <i data-lucide="unlock" class="w-3.5 h-3.5 text-neutral-500"></i>
+                            <span>Accès libre</span>
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Profile Action Buttons -->
+                <div class="flex items-center gap-2 pt-3 border-t border-neutral-100">
+                    <button type="button" onclick="editProfile({{ p.model_dump_json() }})"
+                            class="flex-1 py-1.5 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition flex items-center justify-center gap-1">
+                        <i data-lucide="edit-3" class="w-3 h-3"></i>
+                        <span>Modifier</span>
+                    </button>
+                    {% if profiles|length > 1 %}
+                    <form action="/admin/profiles/{{ p.id }}/delete" method="POST" onsubmit="return confirm('Supprimer ce profil ?');">
+                        <button type="submit" title="Supprimer ce profil"
+                                class="py-1.5 px-2.5 rounded-xl border border-neutral-200 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 text-xs font-semibold transition flex items-center justify-center">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+</div>
+
+<!-- Profile Edit/Create Modal (Minimalist White) -->
+<div id="profileModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-md w-full shadow-2xl relative transform transition-all scale-95" id="profileModalCard">
+        <!-- Close Button -->
+        <button type="button" onclick="closeProfileModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Header -->
+        <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-900 mb-3">
+            <i data-lucide="sliders" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-lg font-bold text-neutral-900 tracking-tight" id="profileModalTitle">Configurer un Profil</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-5">Définit la règle de limitation de bande passante et le VLAN sur la borne Aruba.</p>
+
+        <!-- Form -->
+        <form action="/admin/profiles" method="POST" class="space-y-4">
+            <div>
+                <label for="prof_id" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Identifiant unique (slug)
+                </label>
+                <input type="text" id="prof_id" name="id" required placeholder="ex: streaming, famille, vip"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div>
+                <label for="prof_name" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Nom du profil (affiché à l'invité)
+                </label>
+                <input type="text" id="prof_name" name="name" required placeholder="ex: Streaming & Jeux, Haute Vitesse"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div>
+                <label for="prof_description" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Description
+                </label>
+                <input type="text" id="prof_description" name="description" required placeholder="ex: Accès haute priorité avec débit de 50 Mbps"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="prof_vlan" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        VLAN ID
+                    </label>
+                    <input type="number" id="prof_vlan" name="vlan_id" value="190" required min="1" max="4094"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="prof_bandwidth" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Débit max (Mbps)
+                    </label>
+                    <input type="number" id="prof_bandwidth" name="bandwidth_limit_mbps" placeholder="Vide = Illimité" min="1" max="1000"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+            </div>
+
+            <!-- Authorization & Policy Section -->
+            <div class="pt-3 border-t border-neutral-100 space-y-3.5">
+                <span class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider">
+                    Politique d'Accès &amp; Autorisation
+                </span>
+
+                <!-- Default Profile Checkbox -->
+                <div class="flex items-start gap-2.5 p-3 rounded-2xl bg-neutral-50 border border-neutral-200/80">
+                    <input type="checkbox" id="prof_is_default" name="is_default" onchange="toggleProfileDefaultState()"
+                           class="mt-0.5 rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300">
+                    <div>
+                        <label for="prof_is_default" class="text-xs font-bold text-neutral-800 cursor-pointer block">
+                            Définir comme profil par défaut
+                        </label>
+                        <span class="text-[11px] text-neutral-500 block leading-tight mt-0.5">
+                            Présélectionné automatiquement à l'accueil. Libre d'accès sans aucun mot de passe pour tous les invités.
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Password Protection Checkbox -->
+                <div id="prof_pwd_toggle_container" class="flex items-start gap-2.5 p-3 rounded-2xl bg-neutral-50 border border-neutral-200/80 transition-opacity">
+                    <input type="checkbox" id="prof_requires_password" name="requires_password" onchange="toggleProfilePasswordRequirement()"
+                           class="mt-0.5 rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300">
+                    <div>
+                        <label for="prof_requires_password" class="text-xs font-bold text-neutral-800 cursor-pointer block">
+                            Restreindre l'accès par mot de passe / code
+                        </label>
+                        <span class="text-[11px] text-neutral-500 block leading-tight mt-0.5">
+                            Nécessite un mot de passe ou l'autorisation d'un administrateur pour être sélectionné par un invité.
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Specific Access Password Input -->
+                <div id="prof_access_password_container" class="hidden pl-2 space-y-1">
+                    <label for="prof_access_password" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider">
+                        Mot de passe d'accès spécifique (Optionnel)
+                    </label>
+                    <input type="text" id="prof_access_password" name="access_password" placeholder="Laisser vide pour exiger le mot de passe Admin"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                    <span class="text-[10px] text-neutral-400 block leading-tight">
+                        Si renseigné, l'invité peut débloquer ce profil avec ce code. Le mot de passe Admin fonctionne également en permanence.
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-3">
+                <button type="button" onclick="closeProfileModal()"
+                        class="flex-1 py-2.5 px-4 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit"
+                        class="flex-1 py-2.5 px-4 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Enregistrer</span>
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Guest Profile Unlock Modal (Minimalist White) -->
+<div id="unlockProfileModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-sm w-full shadow-2xl relative transform transition-all scale-95" id="unlockProfileModalCard">
+        <!-- Close Button -->
+        <button type="button" onclick="cancelProfileUnlock()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200/70 flex items-center justify-center text-amber-700 mb-3">
+            <i data-lucide="lock" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-base font-bold text-neutral-900 tracking-tight" id="unlockProfileModalTitle">Autorisation requise</h3>
+        <p class="text-xs text-neutral-500 mt-1 mb-4" id="unlockProfileModalDesc">
+            Ce profil nécessite un code d'accès ou l'autorisation d'un administrateur.
+        </p>
+
+        <form onsubmit="submitProfileUnlock(event)" class="space-y-4">
+            <div>
+                <label for="unlock_password_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Code d'accès ou Mot de passe
+                </label>
+                <input type="password" id="unlock_password_input" required autofocus placeholder="Entrez le code d'accès..."
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                <p id="unlockErrorMsg" class="hidden text-xs text-rose-600 mt-1.5 flex items-center gap-1">
+                    <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                    <span>Code d'accès incorrect. Veuillez réessayer.</span>
+                </p>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="cancelProfileUnlock()"
+                        class="flex-1 py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit" id="btnSubmitUnlock"
+                        class="flex-1 py-2 px-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Valider</span>
+                    <i data-lucide="unlock" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Charte d'utilisation Modal (Minimalist White) -->
+<div id="charterModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative transform transition-all scale-95 max-h-[85vh] flex flex-col" id="charterModalCard">
+        <!-- Close Button -->
+        <button type="button" onclick="closeCharterModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Header -->
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0">
+                <i data-lucide="scale" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-neutral-900 tracking-tight">Charte d'Utilisation du Réseau Wi-Fi</h3>
+                <p class="text-xs text-neutral-500">Conditions générales d'accès et règles de bonne conduite</p>
+            </div>
+        </div>
+
+        <!-- Scrollable content -->
+        <div class="overflow-y-auto space-y-4 text-xs text-neutral-600 pr-2 border-y border-neutral-100 py-4 leading-relaxed">
+            <div>
+                <h4 class="font-bold text-neutral-900 uppercase tracking-wider text-[11px] mb-1">1. Objet &amp; Nature de l'accès</h4>
+                <p>Le présent service fournit un accès temporaire et individuel à Internet via une clé de sécurité Wi-Fi unique (MPSK). Cet accès est strictement réservé à un usage privé, amical ou professionnel légitime.</p>
+            </div>
+
+            <div>
+                <h4 class="font-bold text-neutral-900 uppercase tracking-wider text-[11px] mb-1">2. Respect des lois &amp; Interdictions</h4>
+                <p>L'utilisateur s'engage formellement à ne pas utiliser cet accès pour :</p>
+                <ul class="list-disc pl-5 mt-1 space-y-1 text-neutral-500">
+                    <li>Télécharger ou partager des œuvres protégées par le droit d'auteur (P2P, torrents, etc.).</li>
+                    <li>Consulter, diffuser ou stocker des contenus à caractère illicite, diffamatoire ou contraire aux lois en vigueur.</li>
+                    <li>Effectuer des tentatives d'intrusion, de balayage de ports (port-scan) ou d'attaques par déni de service (DDoS).</li>
+                    <li>Transmettre des messages non sollicités (spamming) ou propager des logiciels malveillants (malware, virus).</li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="font-bold text-neutral-900 uppercase tracking-wider text-[11px] mb-1">3. Traçabilité &amp; Enregistrement technique</h4>
+                <p>Conformément aux obligations légales de conservation des données techniques de connexion, les informations suivantes sont automatiquement horodatées et consignées lors de la génération de l'accès :</p>
+                <ul class="list-disc pl-5 mt-1 space-y-1 text-neutral-500">
+                    <li>Adresse IP source et adresse MAC de l'appareil connecté.</li>
+                    <li>Date, heure exacte et durée de validité de la session.</li>
+                    <li>Identifiant unique de la clé MPSK émise.</li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="font-bold text-neutral-900 uppercase tracking-wider text-[11px] mb-1">4. Régulation du trafic &amp; Révocation</h4>
+                <p>Pour assurer la qualité de service pour tous les résidents et invités, le débit est régulé matériellement selon le profil attribué. L'administrateur du réseau se réserve le droit de révoquer immédiatement et sans préavis tout accès en cas de comportement abusif ou contraire à la présente charte.</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="pt-4 flex justify-end">
+            <button type="button" onclick="closeCharterModal()" class="px-5 py-2.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition">
+                J'ai compris et j'accepte
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Charter Modal Logic
+    function openCharterModal() {
+        const modal = document.getElementById('charterModal');
+        const card = document.getElementById('charterModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+        }, 10);
+    }
+
+    function closeCharterModal() {
+        const modal = document.getElementById('charterModal');
+        const card = document.getElementById('charterModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+    // Tab Switcher Logic
+    function switchTab(tab) {
+        const guestSection = document.getElementById('guestFormSection');
+        const adminSection = document.getElementById('adminDashboardSection');
+        const profilesSection = document.getElementById('adminProfilesSection');
+        
+        const tabBtnGuest = document.getElementById('tabBtnGuest');
+        const tabBtnAdmin = document.getElementById('tabBtnAdmin');
+        const tabBtnProfiles = document.getElementById('tabBtnProfiles');
+
+        // Hide all sections first
+        guestSection.classList.add('hidden');
+        adminSection.classList.add('hidden');
+        profilesSection.classList.add('hidden');
+
+        // Reset button styles
+        const inactiveClass = 'flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5';
+        const activeClass = 'flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-white text-neutral-900 shadow-2xs';
+
+        tabBtnGuest.className = inactiveClass;
+        tabBtnAdmin.className = inactiveClass;
+        tabBtnProfiles.className = inactiveClass;
+
+        if (tab === 'admin') {
+            adminSection.classList.remove('hidden');
+            tabBtnAdmin.className = activeClass;
+        } else if (tab === 'profiles') {
+            profilesSection.classList.remove('hidden');
+            tabBtnProfiles.className = activeClass;
+        } else {
+            guestSection.classList.remove('hidden');
+            tabBtnGuest.className = activeClass;
+        }
+        lucide.createIcons();
+    }
+
+    // Auto-switch to profiles tab if URL hash is #profiles
+    if (window.location.hash === '#profiles') {
+        setTimeout(() => switchTab('profiles'), 50);
+    }
+
+    // Quick Duration Selection
+    function selectDuration(hours, btn) {
+        document.getElementById('duration_hours').value = hours;
+        document.querySelectorAll('.dur-pill').forEach(b => {
+            b.className = 'dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center';
+        });
+        btn.className = 'dur-pill active py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-900 bg-neutral-900 text-white transition text-center shadow-xs';
+        
+        const display = document.getElementById('durationDisplay');
+        if (hours === 1) display.textContent = '1 heure';
+        else if (hours === 24) display.textContent = '24 heures (1 jour)';
+        else display.textContent = hours + ' heures';
+    }
+
+    // Profile Authorization & Unlock Logic
+    let pendingProfileId = null;
+    let unlockedProfiles = {}; // Cache of { profileId: password }
+
+    function onProfileCardClick(e, profileId, requiresPassword, profileName) {
+        // If already unlocked, or doesn't require password, or Admin is logged in:
+        if (!requiresPassword || unlockedProfiles[profileId] || (typeof isAdminLoggedIn === 'function' && isAdminLoggedIn())) {
+            activateProfile(profileId, unlockedProfiles[profileId] || (isAdminLoggedIn() ? 'admin_session' : ''));
+            return;
+        }
+
+        // Needs password prompt
+        e.preventDefault();
+        pendingProfileId = profileId;
+        document.getElementById('unlockProfileModalTitle').textContent = 'Autorisation : ' + profileName;
+        document.getElementById('unlock_password_input').value = '';
+        document.getElementById('unlockErrorMsg').classList.add('hidden');
+        
+        const modal = document.getElementById('unlockProfileModal');
+        const card = document.getElementById('unlockProfileModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('unlock_password_input').focus();
+        }, 10);
+    }
+
+    async function submitProfileUnlock(e) {
+        e.preventDefault();
+        const pwd = document.getElementById('unlock_password_input').value;
+        const errorMsg = document.getElementById('unlockErrorMsg');
+        const btn = document.getElementById('btnSubmitUnlock');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span>Vérification...</span>';
+
+        try {
+            const res = await fetch(`/api/profiles/${pendingProfileId}/verify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pwd })
+            });
+
+            if (res.ok) {
+                unlockedProfiles[pendingProfileId] = pwd;
+                activateProfile(pendingProfileId, pwd);
+                closeUnlockModal();
+                showToast('Profil déverrouillé avec succès !');
+
+                // Update lock badge to unlocked badge
+                const badge = document.getElementById('badge_lock_' + pendingProfileId);
+                if (badge) {
+                    badge.className = 'px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1';
+                    badge.innerHTML = '<i data-lucide="unlock" class="w-2.5 h-2.5 text-emerald-600"></i><span>Débloqué</span>';
+                    lucide.createIcons();
+                }
+            } else {
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Valider</span><i data-lucide="unlock" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    function activateProfile(profileId, password) {
+        const radio = document.getElementById('radio_' + profileId);
+        if (radio) radio.checked = true;
+        document.getElementById('form_profile_password').value = password || '';
+        updateProfileSelection();
+    }
+
+    function cancelProfileUnlock() {
+        closeUnlockModal();
+    }
+
+    function closeUnlockModal() {
+        const modal = document.getElementById('unlockProfileModal');
+        const card = document.getElementById('unlockProfileModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    // Profile Card Selection visual styling
+    function updateProfileSelection() {
+        document.querySelectorAll('.profile-card').forEach(card => {
+            const radio = card.querySelector('input[type="radio"]');
+            const indicator = card.querySelector('.check-indicator');
+            if (radio && radio.checked) {
+                card.className = 'profile-card relative flex flex-col p-4 rounded-2xl border cursor-pointer transition-all select-none border-neutral-900 bg-neutral-50/50 shadow-2xs';
+                indicator.className = 'check-indicator w-4 h-4 rounded-full border flex items-center justify-center border-neutral-900 bg-neutral-900 text-white';
+            } else {
+                card.className = 'profile-card relative flex flex-col p-4 rounded-2xl border cursor-pointer transition-all select-none border-neutral-200 bg-white hover:border-neutral-300';
+                indicator.className = 'check-indicator w-4 h-4 rounded-full border flex items-center justify-center border-neutral-300 text-transparent';
+            }
+        });
+        lucide.createIcons();
+    }
+
+    // Toggle Note Field
+    function toggleNoteField() {
+        const container = document.getElementById('noteContainer');
+        const text = document.getElementById('noteToggleText');
+        if (container.classList.contains('hidden')) {
+            container.classList.remove('hidden');
+            text.textContent = 'Masquer la note';
+            document.getElementById('note').focus();
+        } else {
+            container.classList.add('hidden');
+            text.textContent = 'Ajouter une note ou un mémo (optionnel)';
+        }
+    }
+
+    // Profile Modal Helpers
+    function toggleProfileDefaultState() {
+        const isDef = document.getElementById('prof_is_default').checked;
+        const pwdContainer = document.getElementById('prof_pwd_toggle_container');
+        const accContainer = document.getElementById('prof_access_password_container');
+        if (isDef) {
+            document.getElementById('prof_requires_password').checked = false;
+            pwdContainer.classList.add('opacity-40', 'pointer-events-none');
+            accContainer.classList.add('hidden');
+        } else {
+            pwdContainer.classList.remove('opacity-40', 'pointer-events-none');
+        }
+    }
+
+    function toggleProfilePasswordRequirement() {
+        const req = document.getElementById('prof_requires_password').checked;
+        const accContainer = document.getElementById('prof_access_password_container');
+        if (req) {
+            accContainer.classList.remove('hidden');
+        } else {
+            accContainer.classList.add('hidden');
+        }
+    }
+
+    function openProfileModal(isEdit = false) {
+        const modal = document.getElementById('profileModal');
+        const card = document.getElementById('profileModalCard');
+        if (!isEdit) {
+            document.getElementById('profileModalTitle').textContent = 'Créer un Nouveau Profil';
+            document.getElementById('prof_id').value = '';
+            document.getElementById('prof_id').readOnly = false;
+            document.getElementById('prof_name').value = '';
+            document.getElementById('prof_description').value = '';
+            document.getElementById('prof_vlan').value = '190';
+            document.getElementById('prof_bandwidth').value = '';
+            document.getElementById('prof_is_default').checked = false;
+            document.getElementById('prof_requires_password').checked = false;
+            document.getElementById('prof_access_password').value = '';
+            toggleProfileDefaultState();
+            toggleProfilePasswordRequirement();
+        }
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+        }, 10);
+    }
+
+    function closeProfileModal() {
+        const modal = document.getElementById('profileModal');
+        const card = document.getElementById('profileModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    function editProfile(profile) {
+        document.getElementById('profileModalTitle').textContent = 'Modifier le Profil : ' + profile.name;
+        document.getElementById('prof_id').value = profile.id;
+        document.getElementById('prof_id').readOnly = true;
+        document.getElementById('prof_name').value = profile.name;
+        document.getElementById('prof_description').value = profile.description;
+        document.getElementById('prof_vlan').value = profile.vlan_id || 190;
+        document.getElementById('prof_bandwidth').value = profile.bandwidth_limit_mbps || '';
+        
+        document.getElementById('prof_is_default').checked = profile.is_default || false;
+        document.getElementById('prof_requires_password').checked = profile.requires_password || false;
+        document.getElementById('prof_access_password').value = profile.access_password || '';
+
+        toggleProfileDefaultState();
+        toggleProfilePasswordRequirement();
+        openProfileModal(true);
+    }
+</script>
+{% endblock %}

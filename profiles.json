@@ -1,0 +1,35 @@
+{
+  "standard": {
+    "id": "standard",
+    "name": "Invité Standard",
+    "description": "Usage web, messagerie et réseaux sociaux",
+    "vlan_id": 190,
+    "bandwidth_limit_mbps": 10,
+    "role_name": "Guest-Standard",
+    "is_default": true,
+    "requires_password": false,
+    "access_password": null
+  },
+  "streaming": {
+    "id": "streaming",
+    "name": "Streaming & Télétravail",
+    "description": "Haute vitesse et faible latence pour la vidéo",
+    "vlan_id": 190,
+    "bandwidth_limit_mbps": 50,
+    "role_name": "Guest-Streaming",
+    "is_default": false,
+    "requires_password": true,
+    "access_password": null
+  },
+  "vip": {
+    "id": "vip",
+    "name": "VIP & Illimité",
+    "description": "Bande passante maximale sans aucune restriction",
+    "vlan_id": 190,
+    "bandwidth_limit_mbps": null,
+    "role_name": "Guest-VIP",
+    "is_default": false,
+    "requires_password": true,
+    "access_password": null
+  }
+}
