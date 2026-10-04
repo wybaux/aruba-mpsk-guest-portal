@@ -5,10 +5,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 import base64
 
 from app.config import settings
+from app.db import db
 
 logger = logging.getLogger("wifi_guest.notifications")
 
@@ -79,20 +80,33 @@ class NotificationService:
             return False
         return True
 
+    def get_smtp_config(self) -> dict:
+        """Get active SMTP configuration dynamically from database or defaults."""
+        return {
+            "host": db.get_setting("smtp_host", settings.SMTP_HOST),
+            "port": int(db.get_setting("smtp_port", settings.SMTP_PORT) or 587),
+            "user": db.get_setting("smtp_user", settings.SMTP_USER),
+            "password": db.get_setting("smtp_password", settings.SMTP_PASSWORD),
+            "from_email": db.get_setting("smtp_from", settings.SMTP_FROM),
+            "tls": bool(db.get_setting("smtp_tls", settings.SMTP_TLS))
+        }
+
     def validate_sponsor_domain(self, sponsor_email: str) -> bool:
         """Check if sponsor email belongs to allowed internal corporate domains."""
-        if not settings.ALLOWED_SPONSOR_DOMAINS:
+        allowed_domains_setting = db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS)
+        if not allowed_domains_setting:
             return True
         if not sponsor_email or "@" not in sponsor_email:
             return False
         
         domain = sponsor_email.split("@")[-1].lower().strip()
-        allowed = [d.strip().lower() for d in settings.ALLOWED_SPONSOR_DOMAINS.split(",") if d.strip()]
+        allowed = [d.strip().lower() for d in str(allowed_domains_setting).split(",") if d.strip()]
         return domain in allowed
 
     def _send_email(self, recipient: str, subject: str, html_body: str, qr_png_bytes: Optional[bytes] = None) -> bool:
         """Internal helper to dispatch email via SMTP or simulate offline."""
-        if not settings.SMTP_HOST:
+        cfg = self.get_smtp_config()
+        if not cfg["host"]:
             logger.info(
                 f"[EMAIL SIMULATION] SMTP not configured. Simulating email to '{recipient}' | "
                 f"Subject: {subject}"
@@ -102,7 +116,7 @@ class NotificationService:
         try:
             msg = MIMEMultipart("related")
             msg["Subject"] = subject
-            msg["From"] = settings.SMTP_FROM
+            msg["From"] = cfg["from_email"]
             msg["To"] = recipient
 
             alt = MIMEMultipart("alternative")
@@ -120,19 +134,65 @@ class NotificationService:
                 msg.attach(img_part)
 
             # Connect SMTP
-            server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
-            if settings.SMTP_TLS:
+            server = smtplib.SMTP(cfg["host"], cfg["port"], timeout=10)
+            if cfg["tls"]:
                 server.starttls()
-            if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            if cfg["user"] and cfg["password"]:
+                server.login(cfg["user"], cfg["password"])
 
             server.send_message(msg)
             server.quit()
-            logger.info(f"Email successfully sent to {recipient} via {settings.SMTP_HOST}")
+            logger.info(f"Email successfully sent to {recipient} via {cfg['host']}")
             return True
         except Exception as e:
             logger.error(f"Failed to send email to {recipient} via SMTP: {e}")
             return False
+
+    def test_smtp_connection(self, recipient_email: str) -> Tuple[bool, str]:
+        """Test SMTP configuration and dispatch a test message."""
+        cfg = self.get_smtp_config()
+        if not cfg["host"]:
+            return False, "Aucun serveur SMTP n'est configuré (champ Hôte vide). Enregistrez un hôte SMTP valide."
+        
+        subject = f"Test de configuration SMTP - {settings.APP_TITLE}"
+        now_str = datetime.now().strftime("%d/%m/%Y à %H:%M:%S")
+        body = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, sans-serif; padding: 24px; color: #111; background-color: #fafafa;">
+            <div style="max-width: 480px; margin: 0 auto; background: #fff; border: 1px solid #e5e5e5; border-radius: 16px; padding: 24px;">
+                <h3 style="margin-top: 0; color: #059669;">Connexion SMTP Réussie</h3>
+                <p style="font-size: 13px; line-height: 1.5; color: #555;">
+                    Ce message confirme que la configuration SMTP de votre portail Wi-Fi Invités est opérationnelle !
+                </p>
+                <div style="background: #f3f4f6; border-radius: 12px; padding: 12px; font-size: 12px; font-family: monospace; color: #374151;">
+                    Serveur : {cfg['host']}:{cfg['port']}<br>
+                    Expéditeur : {cfg['from_email']}<br>
+                    Chiffrement TLS : {'Oui' if cfg['tls'] else 'Non'}<br>
+                    Horodatage : {now_str}
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        try:
+            msg = MIMEText(body, "html", "utf-8")
+            msg["Subject"] = subject
+            msg["From"] = cfg["from_email"]
+            msg["To"] = recipient_email
+
+            server = smtplib.SMTP(cfg["host"], cfg["port"], timeout=10)
+            if cfg["tls"]:
+                server.starttls()
+            if cfg["user"] and cfg["password"]:
+                server.login(cfg["user"], cfg["password"])
+
+            server.send_message(msg)
+            server.quit()
+            return True, f"Email de test envoyé avec succès à {recipient_email} !"
+        except Exception as e:
+            logger.error(f"Test SMTP failed: {e}")
+            return False, f"Échec de connexion SMTP : {str(e)}"
 
     def send_otp_email(self, recipient_email: str, code: str) -> bool:
         """Send verification OTP code via email."""

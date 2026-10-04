@@ -573,6 +573,118 @@
             </div>
         </div>
 
+        <!-- Access Policies & Notifications Card (OTP & SMTP) -->
+        <div class="bg-white border border-neutral-200/80 rounded-3xl p-6 shadow-2xs space-y-5">
+            <div class="flex items-center justify-between pb-3 border-b border-neutral-100">
+                <h3 class="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-4 h-4 text-neutral-600"></i>
+                    <span>Politiques d'Accès &amp; Notifications</span>
+                </h3>
+                <span class="text-[11px] text-neutral-400">Configuration en direct</span>
+            </div>
+
+            <!-- 1. Guest OTP Verification Policy Switch -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
+                        <i data-lucide="shield-check" class="w-5 h-5 text-neutral-800"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-xs text-neutral-900">Vérification d'identité par code OTP</h4>
+                            {% if require_otp %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                <span>Obligatoire pour les invités</span>
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-600 border border-neutral-200 flex items-center gap-1">
+                                <span>Optionnel (Accès rapide)</span>
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
+                            {% if require_otp %}
+                            L'invité doit obligatoirement valider un code à 6 chiffres par email pour générer son accès Wi-Fi.
+                            {% else %}
+                            La vérification par code OTP est facultative : l'invité peut créer son pass directement sans saisir de code.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    {% if require_otp %}
+                    <button type="button" onclick="toggleOtpPolicy(false)" id="btnToggleOtp"
+                            class="py-2 px-3.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5">
+                        <i data-lucide="unlock" class="w-3.5 h-3.5 text-neutral-500"></i>
+                        <span>Passer en Optionnel</span>
+                    </button>
+                    {% else %}
+                    <button type="button" onclick="toggleOtpPolicy(true)" id="btnToggleOtp"
+                            class="py-2 px-3.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                        <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i>
+                        <span>Rendre Obligatoire</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 2. SMTP Server & Email Delivery Card -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
+                        <i data-lucide="mail" class="w-5 h-5 text-neutral-800"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-xs text-neutral-900">Serveur d'Envoi d'Emails (SMTP)</h4>
+                            {% if smtp_cfg.host %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span>Actif ({{ smtp_cfg.host }}:{{ smtp_cfg.port }})</span>
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-600 border border-neutral-200 flex items-center gap-1">
+                                <span>Simulation (Lab / Homelab)</span>
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
+                            {% if smtp_cfg.host %}
+                            Expéditeur : <code class="font-mono text-neutral-800">{{ smtp_cfg.from_email }}</code> &bull; Envoi réel des billets et codes OTP.
+                            {% else %}
+                            Aucun serveur SMTP configuré : les codes OTP sont simulés et affichés à l'écran.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button type="button" onclick="openTestEmailModal()"
+                            class="py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5"
+                            title="Tester l'envoi d'un email réel">
+                        <i data-lucide="send" class="w-3.5 h-3.5 text-neutral-500"></i>
+                        <span>Tester</span>
+                    </button>
+                    <button type="button" onclick="openSmtpModal()"
+                            class="py-2 px-3.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                        <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                        <span>Configurer</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users List Header -->
+        <div class="flex items-center justify-between px-1 pt-2">
+            <h3 class="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="users" class="w-4 h-4 text-neutral-500"></i>
+                <span>Comptes d'Administration &amp; Rôles</span>
+            </h3>
+            <span class="text-xs text-neutral-400 font-medium">{{ users|length }} compte{% if users|length > 1 %}s{% endif %}</span>
+        </div>
+
         <!-- Users List -->
         <div class="space-y-3" id="usersListContainer">
             {% for u in users %}
@@ -1009,6 +1121,141 @@
                         class="flex-1 py-2 px-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
                     <span>Activer 2FA</span>
                     <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- SMTP Settings Modal (Minimalist White) -->
+<div id="smtpModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-md w-full shadow-2xl relative transform transition-all scale-95 max-h-[90vh] overflow-y-auto" id="smtpModalCard">
+        <button type="button" onclick="closeSmtpModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-900 mb-3">
+            <i data-lucide="mail" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-lg font-bold text-neutral-900 tracking-tight">Configuration Serveur SMTP</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-5">Définit le serveur d'envoi pour les codes OTP et les billets d'accès Wi-Fi.</p>
+
+        <form onsubmit="handleSmtpSubmit(event)" class="space-y-4">
+            <div class="grid grid-cols-3 gap-3">
+                <div class="col-span-2">
+                    <label for="smtp_host_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Serveur SMTP (Hôte)
+                    </label>
+                    <input type="text" id="smtp_host_input" placeholder="ex: smtp.gmail.com"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="smtp_port_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Port
+                    </label>
+                    <input type="number" id="smtp_port_input" placeholder="587"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+            </div>
+
+            <div>
+                <label for="smtp_from_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Adresse d'Expéditeur (From)
+                </label>
+                <input type="text" id="smtp_from_input" placeholder="ex: Wi-Fi Invités <wifi@entreprise.com>"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="smtp_user_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Identifiant / Utilisateur
+                    </label>
+                    <input type="text" id="smtp_user_input" placeholder="ex: wifi@entreprise.com"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="smtp_password_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Mot de passe SMTP
+                    </label>
+                    <input type="password" id="smtp_password_input" placeholder="Vide = inchangé"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 pt-1">
+                <input type="checkbox" id="smtp_tls_input" checked
+                       class="rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
+                <label for="smtp_tls_input" class="text-xs text-neutral-700 cursor-pointer select-none">
+                    Activer le chiffrement TLS / STARTTLS
+                </label>
+            </div>
+
+            <div class="pt-2 border-t border-neutral-100">
+                <label for="sponsor_domains_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Domaines autorisés pour le parrainage interne
+                </label>
+                <input type="text" id="sponsor_domains_input" placeholder="ex: entreprise.com,societe.fr (vide = tous)"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                <span class="text-[10px] text-neutral-400 block mt-1">Séparez plusieurs domaines par des virgules.</span>
+            </div>
+
+            <p id="smtpErrorMsg" class="hidden text-xs text-rose-600 mt-1 flex items-center gap-1">
+                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                <span id="smtpErrorText">Erreur</span>
+            </p>
+
+            <div class="flex gap-2 pt-3">
+                <button type="button" onclick="closeSmtpModal()"
+                        class="flex-1 py-2.5 px-4 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit" id="btnSubmitSmtp"
+                        class="flex-1 py-2.5 px-4 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Enregistrer</span>
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Test Email Modal (Minimalist White) -->
+<div id="testEmailModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-sm w-full shadow-2xl relative transform transition-all scale-95" id="testEmailModalCard">
+        <button type="button" onclick="closeTestEmailModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-900 mb-3">
+            <i data-lucide="send" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-base font-bold text-neutral-900 tracking-tight">Tester l'envoi d'Email</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-4">Envoie un message de test réel pour vérifier la connexion avec votre serveur SMTP.</p>
+
+        <form onsubmit="handleTestEmailSubmit(event)" class="space-y-4">
+            <div>
+                <label for="test_email_dest" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Email Destinataire
+                </label>
+                <input type="email" id="test_email_dest" required placeholder="votre-email@exemple.com"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+            </div>
+
+            <p id="testEmailErrorMsg" class="hidden text-xs text-rose-600 flex items-center gap-1">
+                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                <span id="testEmailErrorText">Erreur</span>
+            </p>
+
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeTestEmailModal()"
+                        class="flex-1 py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit" id="btnSubmitTestEmail"
+                        class="flex-1 py-2 px-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Envoyer</span>
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
                 </button>
             </div>
         </form>
@@ -1627,6 +1874,201 @@
         } finally {
             btnSubmit.disabled = false;
             btnSubmit.innerHTML = '<span>Activer 2FA</span><i data-lucide="check" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    // ==========================================
+    // System Settings & SMTP Policy Handlers
+    // ==========================================
+    async function toggleOtpPolicy(enable) {
+        const btn = document.getElementById('btnToggleOtp');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/admin/settings/toggle-otp', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ enabled: enable })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(data.message || 'Politique OTP mise à jour !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                showToast(data.detail || 'Erreur lors de la modification de la politique OTP', 'error');
+                if (btn) btn.disabled = false;
+            }
+        } catch (e) {
+            showToast('Erreur serveur lors de la mise à jour de la politique OTP', 'error');
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function openSmtpModal() {
+        const modal = document.getElementById('smtpModal');
+        const card = document.getElementById('smtpModalCard');
+        const errorMsg = document.getElementById('smtpErrorMsg');
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/admin/settings', {
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('smtp_host_input').value = data.smtp_host || '';
+                document.getElementById('smtp_port_input').value = data.smtp_port || 587;
+                document.getElementById('smtp_from_input').value = data.smtp_from || '';
+                document.getElementById('smtp_user_input').value = data.smtp_user || '';
+                document.getElementById('smtp_password_input').value = '';
+                if (data.has_smtp_password) {
+                    document.getElementById('smtp_password_input').placeholder = '•••••••• (Laisser vide pour conserver)';
+                } else {
+                    document.getElementById('smtp_password_input').placeholder = 'Vide = sans authentification';
+                }
+                document.getElementById('smtp_tls_input').checked = (data.smtp_tls !== false);
+                document.getElementById('sponsor_domains_input').value = data.allowed_sponsor_domains || '';
+            }
+        } catch (e) {
+            console.warn('Could not prefetch SMTP settings:', e);
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('smtp_host_input').focus();
+        }, 10);
+    }
+
+    function closeSmtpModal() {
+        const modal = document.getElementById('smtpModal');
+        const card = document.getElementById('smtpModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    async function handleSmtpSubmit(e) {
+        e.preventDefault();
+        const host = document.getElementById('smtp_host_input').value.trim();
+        const port = parseInt(document.getElementById('smtp_port_input').value, 10) || 587;
+        const fromEmail = document.getElementById('smtp_from_input').value.trim();
+        const user = document.getElementById('smtp_user_input').value.trim();
+        const pwd = document.getElementById('smtp_password_input').value;
+        const tls = document.getElementById('smtp_tls_input').checked;
+        const sponsorDomains = document.getElementById('sponsor_domains_input').value.trim();
+
+        const btn = document.getElementById('btnSubmitSmtp');
+        const errorMsg = document.getElementById('smtpErrorMsg');
+        const errorText = document.getElementById('smtpErrorText');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span>Enregistrement...</span>';
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        const payload = {
+            smtp_host: host,
+            smtp_port: port,
+            smtp_from: fromEmail,
+            smtp_user: user,
+            smtp_tls: tls,
+            allowed_sponsor_domains: sponsorDomains
+        };
+        if (pwd) {
+            payload.smtp_password = pwd;
+        }
+
+        try {
+            const res = await fetch('/api/admin/settings', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeSmtpModal();
+                showToast(data.message || 'Configuration SMTP enregistrée !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                errorText.textContent = data.detail || 'Erreur lors de l\'enregistrement';
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur réseau ou communication serveur';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Enregistrer</span><i data-lucide="check" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    function openTestEmailModal() {
+        document.getElementById('test_email_dest').value = '';
+        const errorMsg = document.getElementById('testEmailErrorMsg');
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        const modal = document.getElementById('testEmailModal');
+        const card = document.getElementById('testEmailModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('test_email_dest').focus();
+        }, 10);
+    }
+
+    function closeTestEmailModal() {
+        const modal = document.getElementById('testEmailModal');
+        const card = document.getElementById('testEmailModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    async function handleTestEmailSubmit(e) {
+        e.preventDefault();
+        const recipient = document.getElementById('test_email_dest').value.trim();
+        const btn = document.getElementById('btnSubmitTestEmail');
+        const errorMsg = document.getElementById('testEmailErrorMsg');
+        const errorText = document.getElementById('testEmailErrorText');
+
+        if (!recipient || !recipient.includes('@')) {
+            errorText.textContent = 'Veuillez saisir une adresse email valide.';
+            errorMsg.classList.remove('hidden');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span>Envoi en cours...</span>';
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/admin/settings/test-email', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ recipient_email: recipient })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeTestEmailModal();
+                showToast(data.message || 'Email de test envoyé avec succès !');
+            } else {
+                errorText.textContent = data.detail || 'Échec de l\'envoi du mail de test';
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur lors du test de connexion SMTP';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Envoyer</span><i data-lucide="send" class="w-3.5 h-3.5"></i>';
             lucide.createIcons();
         }
     }

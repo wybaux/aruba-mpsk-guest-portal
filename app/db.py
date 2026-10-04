@@ -98,6 +98,15 @@ class Database:
             );
             """)
 
+            # 4. System Settings Table (Dynamic Configuration)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """)
+
             # Indexes for high performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_passes_expires ON guest_passes(expires_at);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_passes_active ON guest_passes(is_active);")
@@ -285,6 +294,51 @@ class Database:
                 "db_size_bytes": db_size,
                 "db_file": self.db_path
             }
+
+    # -------------------------------------------------------------------------
+    # System Settings Management (Key-Value Dynamic Configuration)
+    # -------------------------------------------------------------------------
+
+    def get_setting(self, key: str, default: Any = None) -> Any:
+        """Retrieve a system setting by key."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM system_settings WHERE key = ?;", (key,))
+            row = cursor.fetchone()
+            if not row:
+                return default
+            val = row["value"]
+            try:
+                return json.loads(val)
+            except Exception:
+                return val
+
+    def set_setting(self, key: str, value: Any):
+        """Save or update a system setting by key."""
+        val_str = json.dumps(value) if not isinstance(value, str) else value
+        now_str = datetime.now().isoformat()
+        with self.get_connection() as conn:
+            conn.execute("""
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;
+            """, (key, val_str, now_str))
+
+    def get_all_settings(self) -> Dict[str, Any]:
+        """Retrieve all system settings as a dictionary."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT key, value FROM system_settings;")
+            rows = cursor.fetchall()
+            res = {}
+            for r in rows:
+                k = r["key"]
+                v = r["value"]
+                try:
+                    res[k] = json.loads(v)
+                except Exception:
+                    res[k] = v
+            return res
 
 # Global DB instance
 db = Database()

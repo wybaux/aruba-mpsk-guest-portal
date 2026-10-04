@@ -400,5 +400,71 @@ def test_rbac_user_management_and_mfa():
     assert del_resp.status_code == 200
     assert del_resp.json()["success"] is True
 
+def test_admin_settings_api():
+    from unittest.mock import patch, MagicMock
+
+    # 1. Get initial settings
+    resp = client.get("/api/admin/settings")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "require_otp_verification" in data
+    assert "allowed_sponsor_domains" in data
+    assert "smtp_port" in data
+
+    # 2. Toggle OTP policy to True
+    toggle_resp1 = client.post("/api/admin/settings/toggle-otp", json={"enabled": True})
+    assert toggle_resp1.status_code == 200
+    assert toggle_resp1.json()["require_otp_verification"] is True
+
+    # Verify via get
+    resp2 = client.get("/api/admin/settings")
+    assert resp2.json()["require_otp_verification"] is True
+
+    # 3. Toggle OTP policy back to False
+    toggle_resp2 = client.post("/api/admin/settings/toggle-otp", json={"enabled": False})
+    assert toggle_resp2.status_code == 200
+    assert toggle_resp2.json()["require_otp_verification"] is False
+
+    # 4. Update SMTP and sponsor settings
+    update_payload = {
+        "smtp_host": "smtp.test-company.local",
+        "smtp_port": 587,
+        "smtp_user": "wifi-notifier@test-company.local",
+        "smtp_password": "supersecretpassword",
+        "smtp_from": "Portail Wi-Fi <wifi-notifier@test-company.local>",
+        "smtp_tls": True,
+        "allowed_sponsor_domains": "test-company.local, partner.org"
+    }
+    set_resp = client.post("/api/admin/settings", json=update_payload)
+    assert set_resp.status_code == 200
+    assert set_resp.json()["success"] is True
+
+    # Verify updated settings
+    resp3 = client.get("/api/admin/settings")
+    s3 = resp3.json()
+    assert s3["smtp_host"] == "smtp.test-company.local"
+    assert s3["smtp_port"] == 587
+    assert s3["smtp_user"] == "wifi-notifier@test-company.local"
+    assert s3["has_smtp_password"] is True
+    assert s3["allowed_sponsor_domains"] == "test-company.local, partner.org"
+
+    # 5. Test email validation error
+    bad_email_resp = client.post("/api/admin/settings/test-email", json={"recipient_email": "invalid-format"})
+    assert bad_email_resp.status_code == 400
+
+    # 6. Test email with mocked SMTP server
+    with patch("smtplib.SMTP") as mock_smtp_cls:
+        mock_server = MagicMock()
+        mock_smtp_cls.return_value = mock_server
+
+        test_mail_resp = client.post("/api/admin/settings/test-email", json={"recipient_email": "guest@test-company.local"})
+        assert test_mail_resp.status_code == 200
+        assert test_mail_resp.json()["success"] is True
+        mock_server.starttls.assert_called_once()
+        mock_server.login.assert_called_once_with("wifi-notifier@test-company.local", "supersecretpassword")
+        mock_server.send_message.assert_called_once()
+        mock_server.quit.assert_called_once()
+
+
 
 

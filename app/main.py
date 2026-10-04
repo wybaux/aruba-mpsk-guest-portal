@@ -90,6 +90,10 @@ async def home_dashboard(request: Request):
     users = auth_service.list_users()
     db_metrics = db.get_metrics()
     
+    require_otp = bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION))
+    allowed_sponsor_domains = db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS)
+    smtp_cfg = notification_service.get_smtp_config()
+    
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -100,8 +104,9 @@ async def home_dashboard(request: Request):
             "profiles": profiles,
             "default_profile": default_profile,
             "aruba_mode": settings.ARUBA_MODE,
-            "require_otp": settings.REQUIRE_OTP_VERIFICATION,
-            "allowed_sponsor_domains": settings.ALLOWED_SPONSOR_DOMAINS,
+            "require_otp": require_otp,
+            "allowed_sponsor_domains": allowed_sponsor_domains,
+            "smtp_cfg": smtp_cfg,
             "users": users,
             "db_metrics": db_metrics
         }
@@ -164,7 +169,8 @@ async def create_guest_form(
     dest = (guest_email.strip() if guest_email else None) or (guest_phone.strip() if guest_phone else None)
     otp_verified = False
 
-    if settings.REQUIRE_OTP_VERIFICATION:
+    require_otp = bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION))
+    if require_otp:
         if not dest:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -438,7 +444,8 @@ async def api_create_guest(req: CreateGuestRequest, request: Request):
     dest = req.guest_email or req.guest_phone
     otp_verified = False
 
-    if settings.REQUIRE_OTP_VERIFICATION:
+    require_otp = bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION))
+    if require_otp:
         if not dest:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -828,4 +835,91 @@ async def api_admin_login(payload: AdminLoginRequest, request: Request):
     if res.get("success"):
         return res
     raise HTTPException(status_code=401, detail="Mot de passe incorrect")
+
+
+# -----------------------------------------------------------------------------
+# DYNAMIC SYSTEM & SMTP SETTINGS MANAGEMENT
+# -----------------------------------------------------------------------------
+
+class UpdateSettingsPayload(BaseModel):
+    require_otp_verification: Optional[bool] = None
+    allowed_sponsor_domains: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from: Optional[str] = None
+    smtp_tls: Optional[bool] = None
+
+class ToggleOtpPayload(BaseModel):
+    enabled: bool
+
+class TestEmailPayload(BaseModel):
+    recipient_email: str
+
+@app.get("/api/admin/settings")
+async def api_admin_get_settings():
+    """Retrieve active system and SMTP configuration."""
+    cfg = notification_service.get_smtp_config()
+    return {
+        "require_otp_verification": bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION)),
+        "allowed_sponsor_domains": db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS) or "",
+        "smtp_host": cfg["host"] or "",
+        "smtp_port": cfg["port"],
+        "smtp_user": cfg["user"] or "",
+        "smtp_from": cfg["from_email"] or "",
+        "smtp_tls": cfg["tls"],
+        "has_smtp_password": bool(cfg["password"])
+    }
+
+@app.post("/api/admin/settings")
+async def api_admin_update_settings(payload: UpdateSettingsPayload, request: Request):
+    """Save or update system and SMTP settings in SQLite."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+
+    if payload.require_otp_verification is not None:
+        db.set_setting("require_otp_verification", payload.require_otp_verification)
+    if payload.allowed_sponsor_domains is not None:
+        db.set_setting("allowed_sponsor_domains", payload.allowed_sponsor_domains.strip())
+    if payload.smtp_host is not None:
+        db.set_setting("smtp_host", payload.smtp_host.strip())
+    if payload.smtp_port is not None:
+        db.set_setting("smtp_port", payload.smtp_port)
+    if payload.smtp_user is not None:
+        db.set_setting("smtp_user", payload.smtp_user.strip())
+    if payload.smtp_password is not None and payload.smtp_password != "":
+        db.set_setting("smtp_password", payload.smtp_password)
+    if payload.smtp_from is not None:
+        db.set_setting("smtp_from", payload.smtp_from.strip())
+    if payload.smtp_tls is not None:
+        db.set_setting("smtp_tls", payload.smtp_tls)
+
+    db.log_audit_event("SETTINGS_UPDATED", actor=actor, details="Updated system/SMTP settings")
+    return {"success": True, "message": "Paramètres mis à jour avec succès !"}
+
+@app.post("/api/admin/settings/toggle-otp")
+async def api_admin_toggle_otp(payload: ToggleOtpPayload, request: Request):
+    """Quick 1-click toggle for guest OTP verification requirement."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    db.set_setting("require_otp_verification", payload.enabled)
+    status_txt = "activée (obligatoire)" if payload.enabled else "désactivée (optionnelle)"
+    db.log_audit_event("OTP_POLICY_CHANGED", actor=actor, details=f"Vérification OTP {status_txt}")
+    return {
+        "success": True,
+        "require_otp_verification": payload.enabled,
+        "message": f"La vérification OTP pour les invités est désormais {status_txt}."
+    }
+
+@app.post("/api/admin/settings/test-email")
+async def api_admin_test_email(payload: TestEmailPayload, request: Request):
+    """Test SMTP connection and send a test message."""
+    if not payload.recipient_email or "@" not in payload.recipient_email:
+        raise HTTPException(status_code=400, detail="Veuillez renseigner une adresse email destinataire valide.")
+    success, message = notification_service.test_smtp_connection(payload.recipient_email.strip())
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"success": True, "message": message}
+
 
