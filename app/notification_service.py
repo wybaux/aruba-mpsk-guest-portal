@@ -329,5 +329,58 @@ class NotificationService:
             })
         return success
 
+    def send_expiry_alert(
+        self,
+        guest_name: str,
+        recipient_email: str,
+        guest_id: str,
+        expires_at_str: str,
+        remaining_minutes: int = 15,
+        extend_url: Optional[str] = None
+    ) -> bool:
+        """Send notification warning guest that Wi-Fi session is about to expire, with 1-click extension link."""
+        clean_email = recipient_email.strip().lower()
+        subject = f"⚠️ Votre accès Wi-Fi expire dans {remaining_minutes} minutes - {settings.APP_TITLE}"
+        link = extend_url or f"/extend/{guest_id}?hours=2"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #fafafa; color: #111827; padding: 24px; }}
+            .card {{ max-width: 480px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 24px; padding: 32px; box-shadow: 0 4px 16px rgba(0,0,0,0.03); }}
+            .badge {{ display: inline-block; padding: 4px 10px; background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 9999px; color: #b45309; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }}
+            h2 {{ margin: 0 0 8px; font-size: 20px; font-weight: 800; color: #111827; }}
+            p {{ color: #4b5563; font-size: 13px; line-height: 1.6; margin: 0 0 20px; }}
+            .info-box {{ background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 16px; padding: 16px; margin-bottom: 24px; font-size: 12px; }}
+            .btn {{ display: inline-block; width: 100%; text-align: center; background-color: #111827; color: #ffffff !important; font-weight: 700; font-size: 13px; padding: 14px 20px; border-radius: 14px; text-decoration: none; box-sizing: border-box; }}
+            .btn:hover {{ background-color: #000000; }}
+            .footer {{ margin-top: 20px; font-size: 11px; color: #9ca3af; text-align: center; }}
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <span class="badge">⏰ Fin de Session Imminente</span>
+            <h2>Bonjour {guest_name},</h2>
+            <p>Votre accès Wi-Fi arrive à expiration dans <strong>{remaining_minutes} minutes</strong> (à {expires_at_str}).</p>
+            
+            <div class="info-box">
+              Si vous êtes encore sur place et avez besoin d'une connexion Internet ininterrompue, vous pouvez prolonger votre accès en 1 clic :
+            </div>
+
+            <a href="{link}" class="btn">Prolonger mon accès (+2 heures)</a>
+
+            <div class="footer">
+              Portail Wi-Fi Invités &bull; Vous pouvez également prolonger depuis votre écran d'accès.
+            </div>
+          </div>
+        </body>
+        </html>
+        """
+        return self._send_email(clean_email, subject, html_body)
+
 # Global service instance
 notification_service = NotificationService()
+

@@ -133,7 +133,13 @@
                 </div>
                 <div class="flex items-center justify-between">
                     <span>Expiration :</span>
-                    <strong class="font-semibold text-rose-600">{{ guest.expires_at.strftime('%d/%m/%Y à %H:%M') }}</strong>
+                    <div class="flex items-center gap-2">
+                        <strong class="font-semibold text-rose-600">{{ guest.expires_at.strftime('%d/%m/%Y à %H:%M') }}</strong>
+                        <a href="/extend/{{ guest.id }}" class="no-print text-[10px] font-bold text-neutral-900 bg-neutral-100 hover:bg-neutral-200 px-2 py-0.5 rounded-md transition flex items-center gap-0.5" title="Prolonger la durée de validité">
+                            <i data-lucide="plus" class="w-3 h-3"></i>
+                            <span>Prolonger</span>
+                        </a>
+                    </div>
                 </div>
                 {% if guest.sponsor_name %}
                 <div class="flex items-center justify-between">

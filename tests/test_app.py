@@ -511,6 +511,162 @@ def test_admin_settings_api():
     assert reset_resp.status_code == 200
     assert reset_resp.json()["duration_presets"] == [1, 2, 4, 8, 24]
 
+def test_pass_extension():
+    # 1. Create a guest pass
+    create_resp = client.post("/api/guests", json={
+        "guest_name": "Test Extension Guest",
+        "duration_hours": 1,
+        "profile": "standard"
+    })
+    assert create_resp.status_code == 201
+    guest_data = create_resp.json()
+    guest_id = guest_data["id"]
+    original_expiry = datetime.fromisoformat(guest_data["expires_at"])
+
+    # 2. View extension page
+    extend_page_resp = client.get(f"/extend/{guest_id}")
+    assert extend_page_resp.status_code == 200
+    assert "Prolonger" in extend_page_resp.text
+    assert "Test Extension Guest" in extend_page_resp.text
+
+    # 3. Extend pass by 3 hours
+    extend_api_resp = client.post(f"/api/guests/{guest_id}/extend", json={"additional_hours": 3})
+    assert extend_api_resp.status_code == 200
+    res_json = extend_api_resp.json()
+    assert res_json["success"] is True
+    assert res_json["extended_hours"] == 3
+    new_expiry = datetime.fromisoformat(res_json["new_expires_at"])
+    assert new_expiry > original_expiry
+    diff_hours = (new_expiry - original_expiry).total_seconds() / 3600
+    assert round(diff_hours, 1) == 3.0
+
+    # 4. Error cases
+    bad_id_resp = client.post("/api/guests/nonexistent-id-999/extend", json={"additional_hours": 2})
+    assert bad_id_resp.status_code == 404
+
+    bad_hours_resp = client.post(f"/api/guests/{guest_id}/extend", json={"additional_hours": 0})
+    assert bad_hours_resp.status_code == 400
+
+def test_live_clients_and_mac_ban():
+    # Login as admin to get auth headers / cookies
+    login_resp = client.post("/api/auth/login", json={"username": "admin", "password": settings.ADMIN_PASSWORD})
+    assert login_resp.status_code == 200
+    token = login_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Get live clients list
+    live_resp = client.get("/api/admin/clients/live", headers=headers)
+    assert live_resp.status_code == 200
+    data = live_resp.json()
+    assert "clients" in data
+    assert len(data["clients"]) >= 1
+    test_client = data["clients"][0]
+    target_mac = test_client["mac"]
+
+    # 2. Disconnect client
+    dc_resp = client.post("/api/admin/clients/disconnect", json={"mac": target_mac}, headers=headers)
+    assert dc_resp.status_code == 200
+    assert dc_resp.json()["success"] is True
+
+    # 3. Ban client MAC
+    ban_resp = client.post("/api/admin/clients/ban", json={
+        "mac": target_mac,
+        "ip": test_client.get("ip"),
+        "guest_name": test_client.get("guest_name"),
+        "reason": "Test Blacklist"
+    }, headers=headers)
+    assert ban_resp.status_code == 200
+    assert ban_resp.json()["success"] is True
+
+    # Check that MAC is recorded as banned in DB
+    assert db.is_mac_banned(target_mac) is True
+    banned_list = db.list_banned_macs()
+    assert any(b["mac"] == target_mac for b in banned_list)
+
+    # 4. Unban client MAC
+    unban_resp = client.delete(f"/api/admin/clients/ban/{target_mac}", headers=headers)
+    assert unban_resp.status_code == 200
+    assert unban_resp.json()["success"] is True
+    assert db.is_mac_banned(target_mac) is False
+
+def test_branding_customization():
+    login_resp = client.post("/api/auth/login", json={"username": "admin", "password": settings.ADMIN_PASSWORD})
+    assert login_resp.status_code == 200
+    token = login_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Get default branding
+    b_resp = client.get("/api/admin/branding", headers=headers)
+    assert b_resp.status_code == 200
+    assert "company_name" in b_resp.json()
+
+    # 2. Update branding
+    new_branding = {
+        "company_name": "Acme Grand Hotel & Spa",
+        "portal_title": "Bienvenue au Wi-Fi Acme",
+        "portal_subtitle": "Connectez-vous pour profiter d'un débit ultra-rapide",
+        "logo_url": "https://example.com/acme-logo.png",
+        "primary_color": "#0ea5e9",
+        "charter_text": "Charte personnalisée de l'hôtel Acme."
+    }
+    update_resp = client.post("/api/admin/branding", json=new_branding, headers=headers)
+    assert update_resp.status_code == 200
+    assert update_resp.json()["success"] is True
+
+    # 3. Verify home page renders updated branding
+    home_resp = client.get("/")
+    assert home_resp.status_code == 200
+    assert "Acme Grand Hotel &amp; Spa" in home_resp.text or "Acme Grand Hotel & Spa" in home_resp.text
+    assert "Bienvenue au Wi-Fi Acme" in home_resp.text
+    assert "https://example.com/acme-logo.png" in home_resp.text
+
+    # Reset branding
+    default_branding = {
+        "company_name": "WIFI Guest",
+        "portal_title": "Portail Wi-Fi Invité",
+        "portal_subtitle": "Générez un accès temporaire sécurisé",
+        "logo_url": "",
+        "primary_color": "#171717",
+        "charter_text": "Charte légale d'utilisation du réseau Wi-Fi."
+    }
+    client.post("/api/admin/branding", json=default_branding, headers=headers)
+
+def test_expiry_alert_detection():
+    # 1. Create pass via API
+    create_resp = client.post("/api/guests", json={
+        "guest_name": "Expiring Soon Guest",
+        "duration_hours": 1,
+        "profile": "standard",
+        "guest_email": "expiring@example.com"
+    })
+    assert create_resp.status_code == 201
+    guest_id = create_resp.json()["id"]
+
+    # 2. Manually backdate expires_at so remaining time is 10 minutes
+    future_10min = datetime.now() + timedelta(minutes=10)
+    import sqlite3
+    with sqlite3.connect(db.db_path) as conn:
+        conn.execute("UPDATE guest_passes SET expires_at = ?, expiry_alert_sent = 0 WHERE id = ?", (future_10min.isoformat(), guest_id))
+        conn.commit()
+
+    needing_alert = db.get_passes_needing_expiry_alert(threshold_minutes=15)
+    matching = [p for p in needing_alert if p["id"] == guest_id]
+    assert len(matching) == 1
+    assert matching[0]["guest_email"] == "expiring@example.com"
+
+    # 3. Mark as sent
+    db.mark_expiry_alert_sent(guest_id)
+    needing_alert_after = db.get_passes_needing_expiry_alert(threshold_minutes=15)
+    matching_after = [p for p in needing_alert_after if p["id"] == guest_id]
+    assert len(matching_after) == 0
+
+def test_multilingual_support():
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert 'id="langDropdown"' in resp.text
+    assert 'setLanguage(' in resp.text
+    assert 'data-i18n=' in resp.text
+
 
 
 

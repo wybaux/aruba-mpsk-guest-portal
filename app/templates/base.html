@@ -87,21 +87,54 @@
         <div class="max-w-5xl mx-auto px-4 sm:px-6 h-18 py-4 flex items-center justify-between">
             <!-- Brand Logo -->
             <a href="/" class="group flex items-center gap-3 transition">
-                <div class="w-10 h-10 rounded-2xl bg-neutral-950 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform duration-200">
+                {% if branding and branding.logo_url %}
+                <img src="{{ branding.logo_url }}" alt="Logo" class="w-10 h-10 rounded-2xl object-contain bg-white border border-neutral-200/80 shadow-xs p-1">
+                {% else %}
+                <div class="w-10 h-10 rounded-2xl bg-neutral-950 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform duration-200" id="headerBrandIcon">
                     <i data-lucide="wifi" class="w-5 h-5"></i>
                 </div>
+                {% endif %}
                 <div>
-                    <span class="font-bold text-base tracking-tight text-neutral-900 block leading-tight">Wi-Fi Invités</span>
-                    <span class="text-[11px] font-medium text-neutral-400 block tracking-normal">Homelab Network</span>
+                    <span class="font-bold text-base tracking-tight text-neutral-900 block leading-tight" id="headerBrandTitle" data-i18n="wifi_guests">
+                        {{ branding.portal_title if branding and branding.portal_title else "Wi-Fi Invités" }}
+                    </span>
+                    <span class="text-[11px] font-medium text-neutral-400 block tracking-normal" id="headerBrandSubtitle" data-i18n="instant_conn">
+                        {{ branding.portal_subtitle if branding and branding.portal_subtitle else "Connexion Instantanée" }}
+                    </span>
                 </div>
             </a>
 
-            <!-- Right Controls: Status & Admin Login Button -->
-            <div class="flex items-center gap-3">
+            <!-- Right Controls: Language Selector, Status & Admin Login Button -->
+            <div class="flex items-center gap-2 sm:gap-3">
                 <!-- Live Network Status Pill -->
-                <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100 border border-neutral-200/80 text-[11px] font-medium text-neutral-600">
+                <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100 border border-neutral-200/80 text-[11px] font-medium text-neutral-600">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span>SSID: <strong class="text-neutral-900 font-semibold">{{ ssid }}</strong></span>
+                </div>
+
+                <!-- Language Selector Dropdown (FR, EN, ES, DE) -->
+                <div class="relative" id="langSelectorContainer">
+                    <button type="button" onclick="toggleLangDropdown()" id="btnCurrentLang"
+                            class="px-2.5 py-1.5 rounded-full bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-200 hover:border-neutral-300 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5"
+                            title="Changer de langue / Change language">
+                        <span id="currentLangFlag">🇫🇷</span>
+                        <span id="currentLangCode" class="font-mono text-[11px]">FR</span>
+                        <i data-lucide="chevron-down" class="w-3 h-3 text-neutral-400"></i>
+                    </button>
+                    <div id="langDropdown" class="hidden absolute right-0 mt-2 w-32 bg-white border border-neutral-200/90 rounded-2xl shadow-xl py-1.5 z-50">
+                        <button type="button" onclick="setLanguage('fr')" class="w-full px-3 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-2">
+                            <span>🇫🇷</span><span>Français</span>
+                        </button>
+                        <button type="button" onclick="setLanguage('en')" class="w-full px-3 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-2">
+                            <span>🇬🇧</span><span>English</span>
+                        </button>
+                        <button type="button" onclick="setLanguage('es')" class="w-full px-3 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-2">
+                            <span>🇪🇸</span><span>Español</span>
+                        </button>
+                        <button type="button" onclick="setLanguage('de')" class="w-full px-3 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-2">
+                            <span>🇩🇪</span><span>Deutsch</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Admin Action Button -->
@@ -109,7 +142,7 @@
                     <button type="button" onclick="openAdminModal()" id="btnAdminLogin"
                             class="px-3.5 py-1.5 rounded-full bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200 hover:border-neutral-300 text-xs font-semibold shadow-2xs hover:shadow-xs transition flex items-center gap-2">
                         <i data-lucide="lock" class="w-3.5 h-3.5 text-neutral-500"></i>
-                        <span>Connexion Admin</span>
+                        <span data-i18n="admin_login">Connexion Admin</span>
                     </button>
                     <div id="adminLoggedInBadge" class="hidden flex items-center gap-2">
                         <span class="px-3 py-1 rounded-full bg-neutral-900 text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
@@ -438,9 +471,214 @@
             }
         }
 
-        // Auto update admin state on page load
+        // ==========================================
+        // Multi-Language Support (FR / EN / ES / DE)
+        // ==========================================
+        const I18N = {
+            fr: {
+                flag: '🇫🇷', code: 'FR',
+                wifi_guests: 'Wi-Fi Invités',
+                instant_conn: 'Connexion Instantanée',
+                admin_login: 'Connexion Admin',
+                admin_logout: 'Déconnexion',
+                create_pass: 'Créer un Accès Invité',
+                create_pass_desc: 'Génération d\'une clé de sécurité individuelle et temporaire (MPSK)',
+                beneficiary_label: 'Nom ou Société',
+                beneficiary_ph: 'Ex: Sophie Martin, Thomas, Événement...',
+                duration_label: 'Durée d\'accès',
+                profiles_label: 'Profil de connexion & Débit',
+                unlimited_speed: 'Débit Illimité',
+                default_badge: 'Par défaut',
+                code_required: 'Code requis',
+                add_note: 'Ajouter une note ou un mémo (optionnel)',
+                contact_section: 'Coordonnées & Réception par Email',
+                optional: 'Optionnel',
+                mandatory_otp: 'Vérification obligatoire',
+                email_ph: 'votre-email@exemple.com',
+                phone_ph: 'Numéro mobile (optionnel)',
+                verify_otp_btn: 'Vérifier par code OTP',
+                send_voucher_email: 'M\'envoyer une copie de mon billet d\'accès par e-mail',
+                sponsor_toggle: 'Parrainé par un collaborateur interne (Optionnel)',
+                sponsor_name_label: 'Nom du collaborateur',
+                sponsor_email_label: 'Email pro du parrain',
+                sponsor_copy: 'Envoyer une copie du pass au parrain par e-mail',
+                accept_charter: 'J\'accepte la Charte d\'utilisation du réseau Wi-Fi',
+                read_charter: 'Lire la charte',
+                generate_btn: 'Générer mon Accès Wi-Fi',
+                generating: 'Génération de l\'accès...',
+                terms_required: 'Veuillez accepter la charte d\'utilisation avant de continuer.',
+                hours_1: '1 heure',
+                hours_24: '24 heures (1 jour)',
+                hours_suffix: 'heures',
+                days_suffix: 'jours'
+            },
+            en: {
+                flag: '🇬🇧', code: 'EN',
+                wifi_guests: 'Guest Wi-Fi',
+                instant_conn: 'Instant Connection',
+                admin_login: 'Admin Login',
+                admin_logout: 'Logout',
+                create_pass: 'Create Guest Pass',
+                create_pass_desc: 'Generate a unique, temporary security pass (MPSK)',
+                beneficiary_label: 'Name or Company',
+                beneficiary_ph: 'E.g. Sarah Connor, Tech Event...',
+                duration_label: 'Access Duration',
+                profiles_label: 'Access Profile & Bandwidth',
+                unlimited_speed: 'Unlimited Speed',
+                default_badge: 'Default',
+                code_required: 'Code required',
+                add_note: 'Add a note or memo (optional)',
+                contact_section: 'Contact Info & Email Delivery',
+                optional: 'Optional',
+                mandatory_otp: 'Mandatory verification',
+                email_ph: 'your-email@example.com',
+                phone_ph: 'Mobile phone (optional)',
+                verify_otp_btn: 'Verify via OTP code',
+                send_voucher_email: 'Send me a copy of my Wi-Fi pass by email',
+                sponsor_toggle: 'Sponsored by an internal employee (Optional)',
+                sponsor_name_label: 'Employee Name',
+                sponsor_email_label: 'Sponsor Corporate Email',
+                sponsor_copy: 'Send a copy of the pass to the sponsor',
+                accept_charter: 'I accept the Wi-Fi Network Terms of Use',
+                read_charter: 'Read terms',
+                generate_btn: 'Generate my Wi-Fi Access',
+                generating: 'Generating access...',
+                terms_required: 'Please accept the network terms of use before continuing.',
+                hours_1: '1 hour',
+                hours_24: '24 hours (1 day)',
+                hours_suffix: 'hours',
+                days_suffix: 'days'
+            },
+            es: {
+                flag: '🇪🇸', code: 'ES',
+                wifi_guests: 'Wi-Fi Invitados',
+                instant_conn: 'Conexión Instantánea',
+                admin_login: 'Acceso Admin',
+                admin_logout: 'Desconectar',
+                create_pass: 'Crear Pase de Invitado',
+                create_pass_desc: 'Generación de clave de seguridad individual y temporal (MPSK)',
+                beneficiary_label: 'Nombre o Empresa',
+                beneficiary_ph: 'Ej: María Santos, Conferencia...',
+                duration_label: 'Duración del acceso',
+                profiles_label: 'Perfil de Acceso y Ancho de Banda',
+                unlimited_speed: 'Velocidad Ilimitada',
+                default_badge: 'Por defecto',
+                code_required: 'Código requerido',
+                add_note: 'Añadir nota o memorando (opcional)',
+                contact_section: 'Contacto y Recepción por Email',
+                optional: 'Opcional',
+                mandatory_otp: 'Verificación obligatoria',
+                email_ph: 'su-email@ejemplo.com',
+                phone_ph: 'Teléfono móvil (opcional)',
+                verify_otp_btn: 'Verificar con código OTP',
+                send_voucher_email: 'Enviarme una copia de mi pase por e-mail',
+                sponsor_toggle: 'Patrocinado por un empleado interno (Opcional)',
+                sponsor_name_label: 'Nombre del empleado',
+                sponsor_email_label: 'Email profesional del patrocinador',
+                sponsor_copy: 'Enviar una copia del pase al patrocinador',
+                accept_charter: 'Acepto los Términos de uso de la red Wi-Fi',
+                read_charter: 'Leer términos',
+                generate_btn: 'Generar mi Acceso Wi-Fi',
+                generating: 'Generando acceso...',
+                terms_required: 'Debe aceptar los términos de uso antes de continuar.',
+                hours_1: '1 hora',
+                hours_24: '24 horas (1 día)',
+                hours_suffix: 'horas',
+                days_suffix: 'días'
+            },
+            de: {
+                flag: '🇩🇪', code: 'DE',
+                wifi_guests: 'Gäste-WLAN',
+                instant_conn: 'Sofortige Verbindung',
+                admin_login: 'Admin-Anmeldung',
+                admin_logout: 'Abmelden',
+                create_pass: 'Gastzugang Erstellen',
+                create_pass_desc: 'Erstellung eines individuellen temporären Schlüssels (MPSK)',
+                beneficiary_label: 'Name oder Unternehmen',
+                beneficiary_ph: 'Z.B. Max Mustermann, Tagung...',
+                duration_label: 'Zugangsdauer',
+                profiles_label: 'Zugangsprofil & Bandbreite',
+                unlimited_speed: 'Unbegrenzte Geschwindigkeit',
+                default_badge: 'Standard',
+                code_required: 'Code erforderlich',
+                add_note: 'Notiz oder Vermerk hinzufügen (optional)',
+                contact_section: 'Kontaktdaten & E-Mail-Empfang',
+                optional: 'Optional',
+                mandatory_otp: 'Pflichtüberprüfung',
+                email_ph: 'ihre-email@beispiel.de',
+                phone_ph: 'Mobilnummer (optional)',
+                verify_otp_btn: 'Mit OTP-Code bestätigen',
+                send_voucher_email: 'Mir eine Kopie des Zugangs per E-Mail senden',
+                sponsor_toggle: 'Von internem Mitarbeiter gesponsert (Optional)',
+                sponsor_name_label: 'Name des Mitarbeiters',
+                sponsor_email_label: 'Dienstliche E-Mail des Sponsors',
+                sponsor_copy: 'Kopie des Passes an den Sponsor senden',
+                accept_charter: 'Ich akzeptiere die WLAN-Nutzungsbedingungen',
+                read_charter: 'Bedingungen lesen',
+                generate_btn: 'Meinen WLAN-Zugang Erstellen',
+                generating: 'Zugang wird erstellt...',
+                terms_required: 'Bitte akzeptieren Sie die Nutzungsbedingungen.',
+                hours_1: '1 Stunde',
+                hours_24: '24 Stunden (1 Tag)',
+                hours_suffix: 'Stunden',
+                days_suffix: 'Tage'
+            }
+        };
+
+        function toggleLangDropdown() {
+            const dropdown = document.getElementById('langDropdown');
+            if (dropdown) dropdown.classList.toggle('hidden');
+        }
+
+        function setLanguage(lang) {
+            if (!I18N[lang]) lang = 'fr';
+            localStorage.setItem('portal_lang', lang);
+            applyTranslations(lang);
+            const dropdown = document.getElementById('langDropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+        }
+
+        function applyTranslations(lang) {
+            const t = I18N[lang] || I18N.fr;
+            const flagElem = document.getElementById('currentLangFlag');
+            const codeElem = document.getElementById('currentLangCode');
+            if (flagElem) flagElem.textContent = t.flag;
+            if (codeElem) codeElem.textContent = t.code;
+
+            // Apply all data-i18n text
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.textContent = t[key];
+            });
+
+            // Apply all data-i18n-placeholder
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (t[key]) el.placeholder = t[key];
+            });
+
+            // Update duration label if present
+            const durInput = document.getElementById('duration_hours');
+            if (durInput && typeof formatDurationLabel === 'function') {
+                const display = document.getElementById('durationDisplay');
+                if (display) display.textContent = formatDurationLabel(durInput.value);
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const container = document.getElementById('langSelectorContainer');
+            const dropdown = document.getElementById('langDropdown');
+            if (container && dropdown && !container.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        // Auto update admin state and language on page load
         document.addEventListener('DOMContentLoaded', () => {
             updateAdminUI();
+            const savedLang = localStorage.getItem('portal_lang') || 'fr';
+            applyTranslations(savedLang);
         });
     </script>
     {% block scripts %}{% endblock %}

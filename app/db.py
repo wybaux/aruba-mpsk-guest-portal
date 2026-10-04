@@ -2,7 +2,7 @@ import sqlite3
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
 
@@ -107,11 +107,30 @@ class Database:
             );
             """)
 
+            # 5. Banned MACs Table (Live Blacklist)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS banned_macs (
+                mac TEXT PRIMARY KEY,
+                ip TEXT,
+                guest_name TEXT,
+                reason TEXT,
+                banned_by TEXT,
+                banned_at TEXT NOT NULL
+            );
+            """)
+
+            # Migration: Ensure expiry_alert_sent exists in guest_passes
+            try:
+                cursor.execute("ALTER TABLE guest_passes ADD COLUMN expiry_alert_sent INTEGER DEFAULT 0;")
+            except Exception:
+                pass
+
             # Indexes for high performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_passes_expires ON guest_passes(expires_at);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_passes_active ON guest_passes(is_active);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_events(timestamp);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_banned_macs ON banned_macs(mac);")
 
         logger.info(f"Database initialized successfully at {self.db_path}")
 
@@ -385,6 +404,175 @@ class Database:
         self.set_setting("duration_presets", cleaned)
         return cleaned
 
+    # -------------------------------------------------------------------------
+    # Expiry Alerts & Pass Extension Operations
+    # -------------------------------------------------------------------------
+
+    def get_passes_needing_expiry_alert(self, threshold_minutes: int = 15) -> List[dict]:
+        """Find active passes expiring within threshold_minutes that haven't received an alert yet."""
+        now = datetime.now()
+        threshold_time = now + timedelta(minutes=threshold_minutes)
+        now_str = now.isoformat()
+        threshold_str = threshold_time.isoformat()
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+            SELECT * FROM guest_passes 
+            WHERE is_active = 1 
+              AND (expiry_alert_sent IS NULL OR expiry_alert_sent = 0)
+              AND expires_at > ? 
+              AND expires_at <= ?
+              AND guest_email IS NOT NULL 
+              AND guest_email != '';
+            """, (now_str, threshold_str))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def mark_expiry_alert_sent(self, guest_id: str):
+        """Mark pass as having sent its impending expiration alert."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE guest_passes SET expiry_alert_sent = 1 WHERE id = ?;", (guest_id,))
+
+    def extend_pass(self, guest_id: str, additional_hours: float) -> Optional[dict]:
+        """Extend expiration date of a guest pass by additional_hours."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM guest_passes WHERE id = ?;", (guest_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            p = dict(row)
+            try:
+                current_exp = datetime.fromisoformat(p["expires_at"])
+            except Exception:
+                current_exp = datetime.now()
+
+            base_time = max(datetime.now(), current_exp)
+            new_exp = base_time + timedelta(hours=additional_hours)
+            new_exp_str = new_exp.isoformat()
+            new_duration = float(p.get("duration_hours", 0)) + float(additional_hours)
+
+            cursor.execute("""
+            UPDATE guest_passes 
+            SET expires_at = ?, duration_hours = ?, is_active = 1, expiry_alert_sent = 0 
+            WHERE id = ?;
+            """, (new_exp_str, new_duration, guest_id))
+
+            p["expires_at"] = new_exp_str
+            p["duration_hours"] = new_duration
+            p["is_active"] = 1
+            p["expiry_alert_sent"] = 0
+            return p
+
+    # -------------------------------------------------------------------------
+    # MAC Ban & Blacklist Operations
+    # -------------------------------------------------------------------------
+
+    def ban_mac(self, mac: str, reason: str = "", actor: str = "admin", ip: Optional[str] = None, guest_name: Optional[str] = None) -> dict:
+        """Add MAC address to live blacklist."""
+        clean_mac = mac.strip().upper()
+        now_str = datetime.now().isoformat()
+        with self.get_connection() as conn:
+            conn.execute("""
+            INSERT INTO banned_macs (mac, ip, guest_name, reason, banned_by, banned_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(mac) DO UPDATE SET 
+                reason = excluded.reason, 
+                banned_by = excluded.banned_by, 
+                banned_at = excluded.banned_at;
+            """, (clean_mac, ip, guest_name, reason, actor, now_str))
+
+        self.log_audit_event("MAC_BANNED", actor=actor, target=clean_mac, ip_address=ip, details=f"Raison: {reason or 'Non spécifiée'}")
+        return {
+            "mac": clean_mac,
+            "ip": ip,
+            "guest_name": guest_name,
+            "reason": reason,
+            "banned_by": actor,
+            "banned_at": now_str
+        }
+
+    def unban_mac(self, mac: str, actor: str = "admin") -> bool:
+        """Remove MAC address from blacklist."""
+        clean_mac = mac.strip().upper()
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM banned_macs WHERE mac = ?;", (clean_mac,))
+            count = cursor.rowcount
+
+        if count > 0:
+            self.log_audit_event("MAC_UNBANNED", actor=actor, target=clean_mac, details="Débannissement d'adresse MAC")
+            return True
+        return False
+
+    def is_mac_banned(self, mac: str) -> bool:
+        """Check if MAC address is currently blacklisted."""
+        if not mac:
+            return False
+        clean_mac = mac.strip().upper()
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM banned_macs WHERE mac = ?;", (clean_mac,))
+            return cursor.fetchone() is not None
+
+    def list_banned_macs(self) -> List[dict]:
+        """List all currently banned MAC addresses."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM banned_macs ORDER BY banned_at DESC;")
+            return [dict(row) for row in cursor.fetchall()]
+
+    # -------------------------------------------------------------------------
+    # Branding & Customization Operations
+    # -------------------------------------------------------------------------
+
+    def get_branding(self) -> dict:
+        """Retrieve dynamic branding settings with fallbacks."""
+        primary_col = self.get_setting("branding_primary_color") or self.get_setting("branding_accent_color", "#111827")
+        charter = self.get_setting("branding_charter_text") or self.get_setting("branding_custom_charter", "")
+        return {
+            "company_name": self.get_setting("branding_company_name", "WIFI Guest"),
+            "portal_title": self.get_setting("branding_portal_title", "Wi-Fi Invités"),
+            "portal_subtitle": self.get_setting("branding_portal_subtitle", "Connexion Wi-Fi simplifiée et sécurisée via clé unique (MPSK)"),
+            "logo_url": self.get_setting("branding_logo_url", ""),
+            "primary_color": primary_col,
+            "accent_color": primary_col,
+            "charter_text": charter,
+            "custom_charter": charter,
+            "footer_text": self.get_setting("branding_footer_text", "")
+        }
+
+    def set_branding(self, branding: dict):
+        """Save dynamic branding settings."""
+        if "company_name" in branding and branding["company_name"] is not None:
+            self.set_setting("branding_company_name", str(branding["company_name"]).strip())
+        if "portal_title" in branding and branding["portal_title"] is not None:
+            self.set_setting("branding_portal_title", str(branding["portal_title"]).strip())
+        if "portal_subtitle" in branding and branding["portal_subtitle"] is not None:
+            self.set_setting("branding_portal_subtitle", str(branding["portal_subtitle"]).strip())
+        if "logo_url" in branding and branding["logo_url"] is not None:
+            self.set_setting("branding_logo_url", str(branding["logo_url"]).strip())
+        if "primary_color" in branding and branding["primary_color"] is not None:
+            col = str(branding["primary_color"]).strip()
+            self.set_setting("branding_primary_color", col)
+            self.set_setting("branding_accent_color", col)
+        elif "accent_color" in branding and branding["accent_color"] is not None:
+            col = str(branding["accent_color"]).strip()
+            self.set_setting("branding_primary_color", col)
+            self.set_setting("branding_accent_color", col)
+        if "charter_text" in branding and branding["charter_text"] is not None:
+            txt = str(branding["charter_text"]).strip()
+            self.set_setting("branding_charter_text", txt)
+            self.set_setting("branding_custom_charter", txt)
+        elif "custom_charter" in branding and branding["custom_charter"] is not None:
+            txt = str(branding["custom_charter"]).strip()
+            self.set_setting("branding_charter_text", txt)
+            self.set_setting("branding_custom_charter", txt)
+        if "footer_text" in branding and branding["footer_text"] is not None:
+            self.set_setting("branding_footer_text", str(branding["footer_text"]).strip())
+
 # Global DB instance
 db = Database()
+
 

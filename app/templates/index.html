@@ -39,9 +39,11 @@
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 <span>Réseau : <strong class="text-neutral-900">{{ ssid }}</strong> &bull; MPSK Éphémère</span>
             </div>
-            <h1 class="text-3xl sm:text-4xl font-extrabold text-neutral-950 tracking-tight">Accès Wi-Fi Invité</h1>
-            <p class="text-sm text-neutral-500 mt-2 max-w-md mx-auto">
-                Renseignez votre nom et la durée souhaitée pour générer votre clé Wi-Fi personnelle et votre QR Code de connexion.
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-neutral-950 tracking-tight" data-i18n="create_pass">
+                {{ branding.portal_title if branding and branding.portal_title else "Accès Wi-Fi Invité" }}
+            </h1>
+            <p class="text-sm text-neutral-500 mt-2 max-w-md mx-auto" data-i18n="create_pass_desc">
+                {{ branding.portal_subtitle if branding and branding.portal_subtitle else "Renseignez votre nom et la durée souhaitée pour générer votre clé Wi-Fi personnelle et votre QR Code de connexion." }}
             </p>
         </div>
 
@@ -51,7 +53,7 @@
                 
                 <!-- Guest Name Input -->
                 <div>
-                    <label for="guest_name" class="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-2">
+                    <label for="guest_name" class="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-2" data-i18n="beneficiary_label">
                         Nom ou Prénom de l'invité
                     </label>
                     <div class="relative">
@@ -60,6 +62,7 @@
                         </div>
                         <input type="text" id="guest_name" name="guest_name" required autofocus
                                placeholder="Ex: Sophie Martin, Thomas, Événement..."
+                               data-i18n-placeholder="beneficiary_ph"
                                class="w-full pl-10 pr-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 placeholder-neutral-400 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
                     </div>
                 </div>
@@ -423,6 +426,184 @@
             </div>
             {% endif %}
         </div>
+
+        <!-- ============================================================= -->
+        <!-- Live Connected Wireless Clients Section                       -->
+        <!-- ============================================================= -->
+        <div class="space-y-4 pt-4 border-t border-neutral-200/80">
+            <div class="flex flex-wrap items-center justify-between gap-3 px-1">
+                <div>
+                    <h3 class="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                        <span class="relative flex h-2.5 w-2.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        <span>Clients Wi-Fi Connectés en Temps Réel</span>
+                    </h3>
+                    <p class="text-xs text-neutral-500 mt-0.5">Associations radio actives relevées sur la borne Instant AP (MAC, IP, RSSI, Trafic)</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="refreshLiveClients()" id="btnRefreshLiveClients"
+                            class="py-1.5 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold shadow-2xs transition flex items-center gap-1.5">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-neutral-500" id="iconRefreshLiveClients"></i>
+                        <span>Actualiser</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Clients Table / List -->
+            <div id="liveClientsContainer" class="bg-white border border-neutral-200/80 rounded-2xl shadow-2xs overflow-hidden">
+                {% if connected_clients %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-neutral-50/80 border-b border-neutral-200/70 text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
+                            <tr>
+                                <th class="py-3 px-4">Client / Invité</th>
+                                <th class="py-3 px-4">Adresses MAC &amp; IP</th>
+                                <th class="py-3 px-4">Borne AP &amp; Signal</th>
+                                <th class="py-3 px-4">Trafic Échangé</th>
+                                <th class="py-3 px-4">Durée</th>
+                                <th class="py-3 px-4 text-right">Actions Directes</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-100" id="liveClientsTbody">
+                            {% for c in connected_clients %}
+                            <tr class="hover:bg-neutral-50/60 transition" id="clientRow_{{ c.mac|replace(':', '') }}">
+                                <td class="py-3.5 px-4">
+                                    <div class="font-bold text-neutral-900">{{ c.guest_name or c.hostname or "Invité sans nom" }}</div>
+                                    <div class="text-[11px] text-neutral-400 font-mono">{{ c.hostname or "Nom d'hôte inconnu" }}</div>
+                                </td>
+                                <td class="py-3.5 px-4 font-mono text-[11px]">
+                                    <div class="text-neutral-800 font-semibold">{{ c.mac }}</div>
+                                    <div class="text-neutral-500">{{ c.ip or "IP DHCP en attente" }}</div>
+                                </td>
+                                <td class="py-3.5 px-4">
+                                    <div class="font-semibold text-neutral-700 flex items-center gap-1.5">
+                                        <i data-lucide="radio" class="w-3 h-3 text-neutral-500"></i>
+                                        <span>{{ c.ap_name }}</span>
+                                    </div>
+                                    <div class="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-1">
+                                        {% set client_rssi = c.get('rssi', c.get('signal_dbm', -65)) %}
+                                        {% if client_rssi >= -60 %}
+                                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        <span class="text-emerald-700 font-medium">{{ client_rssi }} dBm (Excellent)</span>
+                                        {% elif client_rssi >= -75 %}
+                                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        <span class="text-amber-700 font-medium">{{ client_rssi }} dBm (Correct)</span>
+                                        {% else %}
+                                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                        <span class="text-rose-700 font-medium">{{ client_rssi }} dBm (Faible)</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="py-3.5 px-4 font-mono text-[11px] text-neutral-600">
+                                    <div class="flex items-center gap-1 text-emerald-700">
+                                        <span>↓</span> <span>{{ c.get('rx_mb', c.get('data_mb', 0)) }} MB</span>
+                                    </div>
+                                    <div class="flex items-center gap-1 text-neutral-400">
+                                        <span>↑</span> <span>{{ c.get('tx_mb', 0) }} MB</span>
+                                    </div>
+                                </td>
+                                <td class="py-3.5 px-4 text-neutral-600 font-medium text-xs">
+                                    {{ c.get('connected_duration_min', c.get('connected_minutes', 0)) }} min
+                                </td>
+                                <td class="py-3.5 px-4 text-right">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <button type="button" onclick="disconnectClient('{{ c.mac }}')"
+                                                class="py-1 px-2.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-[11px] font-semibold transition flex items-center gap-1"
+                                                title="Forcer la déconnexion immédiate de la borne">
+                                            <i data-lucide="zap-off" class="w-3 h-3 text-amber-600"></i>
+                                            <span>Déconnecter</span>
+                                        </button>
+                                        <button type="button" onclick="openBanModal('{{ c.mac }}', '{{ c.ip }}', '{{ c.guest_name|escape }}')"
+                                                class="py-1 px-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold transition flex items-center gap-1"
+                                                title="Bannir cette adresse MAC">
+                                            <i data-lucide="ban" class="w-3 h-3 text-rose-600"></i>
+                                            <span>Bannir</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-8 px-4 text-neutral-500">
+                    <i data-lucide="wifi" class="w-6 h-6 mx-auto mb-2 text-neutral-400"></i>
+                    <p class="text-xs font-medium">Aucun client sans fil connecté actuellement sur la borne.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- Banned MAC Addresses (Blacklist) Section                      -->
+        <!-- ============================================================= -->
+        <div class="space-y-4 pt-4 border-t border-neutral-200/80">
+            <div class="flex items-center justify-between px-1">
+                <div>
+                    <h3 class="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="shield-x" class="w-4 h-4 text-rose-600"></i>
+                        <span>Liste Noire des Adresses MAC (Bannissements)</span>
+                    </h3>
+                    <p class="text-xs text-neutral-500 mt-0.5">Appareils bloqués matériellement sur le contrôleur Aruba</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-700 text-xs font-bold" id="bannedCountBadge">
+                    {{ banned_macs|length }} banni{% if banned_macs|length > 1 %}s{% endif %}
+                </span>
+            </div>
+
+            <div class="bg-white border border-neutral-200/80 rounded-2xl shadow-2xs overflow-hidden">
+                {% if banned_macs %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-neutral-50/80 border-b border-neutral-200/70 text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
+                            <tr>
+                                <th class="py-3 px-4">Adresse MAC</th>
+                                <th class="py-3 px-4">Dernière IP &amp; Nom</th>
+                                <th class="py-3 px-4">Motif du Bannissement</th>
+                                <th class="py-3 px-4">Date &amp; Par</th>
+                                <th class="py-3 px-4 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-100" id="bannedMacsTbody">
+                            {% for b in banned_macs %}
+                            <tr class="hover:bg-neutral-50/60 transition" id="bannedRow_{{ b.mac|replace(':', '') }}">
+                                <td class="py-3 px-4 font-mono font-bold text-neutral-900">{{ b.mac }}</td>
+                                <td class="py-3 px-4">
+                                    <div class="font-semibold text-neutral-800">{{ b.guest_name or "Inconnu" }}</div>
+                                    <div class="text-[11px] font-mono text-neutral-400">{{ b.ip or "-" }}</div>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                        {{ b.reason or "Non spécifié" }}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4 text-neutral-500 text-[11px]">
+                                    <div>{{ b.banned_at[:16] if b.banned_at else "-" }}</div>
+                                    <div class="text-[10px] text-neutral-400">par @{{ b.banned_by or "admin" }}</div>
+                                </td>
+                                <td class="py-3 px-4 text-right">
+                                    <button type="button" onclick="unbanClient('{{ b.mac }}')"
+                                            class="py-1 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-emerald-700 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5 ml-auto">
+                                        <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i>
+                                        <span>Débannir</span>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-8 px-4 text-neutral-400" id="emptyBannedMessage">
+                    <i data-lucide="shield-check" class="w-6 h-6 mx-auto mb-2 text-neutral-400"></i>
+                    <p class="text-xs font-medium">Aucune adresse MAC n'est actuellement bannie du réseau.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
     </section>
 
     <!-- ========================================================================= -->
@@ -697,6 +878,34 @@
                     <button type="button" onclick="openDurationsModal()"
                             class="py-2 px-3.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
                         <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+                        <span>Personnaliser</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. Graphic Customization & White-Label Branding Card -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
+                        <i data-lucide="palette" class="w-5 h-5 text-neutral-800"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-xs text-neutral-900">Personnalisation Graphique &amp; Marque Blanche</h4>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-900 text-white" id="brandCompanyBadge">
+                                {{ branding.company_name or "WIFI Guest" }}
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
+                            Nom de l'entreprise, titre du portail, logo personnalisé, couleur d'accent et texte de la charte légale.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button type="button" onclick="openBrandingModal()"
+                            class="py-2 px-3.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                        <i data-lucide="palette" class="w-3.5 h-3.5"></i>
                         <span>Personnaliser</span>
                     </button>
                 </div>
@@ -1287,6 +1496,8 @@
             </div>
         </form>
     </div>
+</div>
+
 <!-- Durations Customization Modal (Minimalist White) -->
 <div id="durationsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
     <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-md w-full shadow-2xl relative transform transition-all scale-95" id="durationsModalCard">
@@ -1379,6 +1590,169 @@
                 <button type="submit" id="btnSubmitDurations"
                         class="flex-1 py-2 px-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
                     <span>Enregistrer</span>
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Ban Client Modal (Minimalist White) -->
+<div id="banModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-md w-full shadow-2xl relative transform transition-all scale-95" id="banModalCard">
+        <button type="button" onclick="closeBanModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mb-3">
+            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-base font-bold text-neutral-900 tracking-tight">Bannir un Client du Wi-Fi</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-4">L'appareil sera immédiatement éjecté et bloqué matériellement par son adresse MAC.</p>
+
+        <form onsubmit="submitBanClient(event)" class="space-y-4">
+            <div>
+                <label for="ban_mac" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Adresse MAC
+                </label>
+                <input type="text" id="ban_mac" name="mac" required readonly
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-100 font-mono text-xs text-neutral-900 font-bold focus:outline-none cursor-not-allowed">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="ban_ip" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Adresse IP
+                    </label>
+                    <input type="text" id="ban_ip" name="ip" readonly
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-100 font-mono text-xs text-neutral-700 focus:outline-none cursor-not-allowed">
+                </div>
+                <div>
+                    <label for="ban_name" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Nom Invité
+                    </label>
+                    <input type="text" id="ban_name" name="guest_name" readonly
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-100 text-xs text-neutral-700 focus:outline-none cursor-not-allowed">
+                </div>
+            </div>
+
+            <div>
+                <label for="ban_reason" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Motif du Bannissement
+                </label>
+                <select id="ban_reason" name="reason"
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                    <option value="Non-respect de la charte d'utilisation">Non-respect de la charte d'utilisation</option>
+                    <option value="Consommation excessive de bande passante">Consommation excessive de bande passante</option>
+                    <option value="Activité suspecte ou malveillante">Activité suspecte ou malveillante</option>
+                    <option value="Appareil non autorisé">Appareil non autorisé</option>
+                    <option value="Autre motif administratif">Autre motif administratif</option>
+                </select>
+            </div>
+
+            <p id="banErrorMsg" class="hidden text-xs text-rose-600 flex items-center gap-1">
+                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                <span id="banErrorText">Erreur</span>
+            </p>
+
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeBanModal()"
+                        class="flex-1 py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit" id="btnSubmitBan"
+                        class="flex-1 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Confirmer le Bannissement</span>
+                    <i data-lucide="ban" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Branding Customization Modal (Minimalist White) -->
+<div id="brandingModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-lg w-full shadow-2xl relative transform transition-all scale-95 max-h-[90vh] overflow-y-auto" id="brandingModalCard">
+        <button type="button" onclick="closeBrandingModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-900 mb-3">
+            <i data-lucide="palette" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-base font-bold text-neutral-900 tracking-tight">Personnalisation Graphique &amp; Marque Blanche</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-4">Adaptez l'apparence du portail aux couleurs et à l'identité visuelle de votre établissement.</p>
+
+        <form onsubmit="handleBrandingSubmit(event)" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label for="brand_company_name" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Nom de l'Établissement
+                    </label>
+                    <input type="text" id="brand_company_name" required placeholder="ex: Hôtel Le Grand Bleu"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="brand_primary_color" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Couleur d'Accent Hex
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" id="brand_color_picker" value="#171717"
+                               oninput="document.getElementById('brand_primary_color').value = this.value"
+                               class="w-9 h-9 p-0.5 rounded-xl border border-neutral-200 cursor-pointer bg-white">
+                        <input type="text" id="brand_primary_color" placeholder="#171717"
+                               oninput="document.getElementById('brand_color_picker').value = this.value"
+                               class="flex-1 px-3.5 py-2 rounded-xl border border-neutral-200 font-mono text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label for="brand_portal_title" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Titre Principal du Portail
+                </label>
+                <input type="text" id="brand_portal_title" required placeholder="ex: Accès Wi-Fi Invité Sécurisé"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div>
+                <label for="brand_portal_subtitle" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Sous-titre d'Accueil
+                </label>
+                <input type="text" id="brand_portal_subtitle" placeholder="ex: Obtenez votre clé de connexion temporaire individuelle"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div>
+                <label for="brand_logo_url" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    URL du Logo (Optionnel)
+                </label>
+                <input type="url" id="brand_logo_url" placeholder="https://exemple.com/logo.png (vide = icône Wi-Fi)"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs font-mono placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                <span class="text-[10px] text-neutral-400 block mt-1">Image PNG, SVG ou JPG hébergée publiquement.</span>
+            </div>
+
+            <div>
+                <label for="brand_charter_text" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Texte de la Charte Wi-Fi (Légal)
+                </label>
+                <textarea id="brand_charter_text" rows="4" placeholder="Règles d'utilisation du réseau Wi-Fi..."
+                          class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition"></textarea>
+            </div>
+
+            <p id="brandingErrorMsg" class="hidden text-xs text-rose-600 flex items-center gap-1">
+                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                <span id="brandingErrorText">Erreur</span>
+            </p>
+
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeBrandingModal()"
+                        class="flex-1 py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit" id="btnSubmitBranding"
+                        class="flex-1 py-2 px-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Enregistrer la Marque</span>
                     <i data-lucide="check" class="w-3.5 h-3.5"></i>
                 </button>
             </div>
@@ -2291,6 +2665,290 @@
             btn.disabled = false;
             btn.innerHTML = '<span>Enregistrer</span><i data-lucide="check" class="w-3.5 h-3.5"></i>';
             lucide.createIcons();
+        }
+    }
+
+    // ==========================================
+    // Real-Time Connected Clients & MAC Ban Logic
+    // ==========================================
+    async function disconnectClient(mac) {
+        if (!confirm(`Confirmer la déconnexion immédiate du client ${mac} ?`)) return;
+        try {
+            const res = await fetch('/api/admin/clients/disconnect', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ mac })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(data.message || `Client ${mac} déconnecté de la borne.`);
+                const cleanMac = mac.replace(/:/g, '');
+                const row = document.getElementById(`clientRow_${cleanMac}`);
+                if (row) {
+                    row.classList.add('opacity-40');
+                    setTimeout(() => row.remove(), 400);
+                }
+            } else {
+                showToast(data.detail || 'Erreur lors de la déconnexion', 'error');
+            }
+        } catch (e) {
+            showToast('Erreur réseau lors de la déconnexion', 'error');
+        }
+    }
+
+    function openBanModal(mac, ip, name) {
+        document.getElementById('ban_mac').value = mac || '';
+        document.getElementById('ban_ip').value = ip || '';
+        document.getElementById('ban_name').value = name || '';
+        const errorMsg = document.getElementById('banErrorMsg');
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        const modal = document.getElementById('banModal');
+        const card = document.getElementById('banModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+        }, 10);
+    }
+
+    function closeBanModal() {
+        const modal = document.getElementById('banModal');
+        const card = document.getElementById('banModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    async function submitBanClient(e) {
+        e.preventDefault();
+        const mac = document.getElementById('ban_mac').value.trim();
+        const ip = document.getElementById('ban_ip').value.trim();
+        const guestName = document.getElementById('ban_name').value.trim();
+        const reason = document.getElementById('ban_reason').value;
+        const btn = document.getElementById('btnSubmitBan');
+        const errorMsg = document.getElementById('banErrorMsg');
+        const errorText = document.getElementById('banErrorText');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span>Bannissement...</span>';
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/admin/clients/ban', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ mac, ip, guest_name: guestName, reason })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeBanModal();
+                showToast(data.message || `Appareil ${mac} banni avec succès.`);
+                window.location.hash = '#admin';
+                window.location.reload();
+            } else {
+                errorText.textContent = data.detail || 'Erreur lors du bannissement';
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur réseau ou communication serveur';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Confirmer le Bannissement</span><i data-lucide="ban" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    async function unbanClient(mac) {
+        if (!confirm(`Lever le bannissement pour l'adresse MAC ${mac} ?`)) return;
+        try {
+            const res = await fetch(`/api/admin/clients/ban/${encodeURIComponent(mac)}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(data.message || `Adresse MAC ${mac} débannie.`);
+                const cleanMac = mac.replace(/:/g, '');
+                const row = document.getElementById(`bannedRow_${cleanMac}`);
+                if (row) {
+                    row.remove();
+                }
+                const badge = document.getElementById('bannedCountBadge');
+                if (badge) {
+                    const count = document.querySelectorAll('#bannedMacsTbody tr').length;
+                    badge.textContent = `${count} banni${count > 1 ? 's' : ''}`;
+                }
+            } else {
+                showToast(data.detail || 'Erreur lors du débannissement', 'error');
+            }
+        } catch (e) {
+            showToast('Erreur réseau lors du débannissement', 'error');
+        }
+    }
+
+    // ==========================================
+    // Branding & White-Label Customization Logic
+    // ==========================================
+    async function openBrandingModal() {
+        const errorMsg = document.getElementById('brandingErrorMsg');
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/admin/branding', { headers: getAuthHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('brand_company_name').value = data.company_name || '';
+                document.getElementById('brand_portal_title').value = data.portal_title || '';
+                document.getElementById('brand_portal_subtitle').value = data.portal_subtitle || '';
+                document.getElementById('brand_logo_url').value = data.logo_url || '';
+                const color = data.primary_color || '#171717';
+                document.getElementById('brand_primary_color').value = color;
+                document.getElementById('brand_color_picker').value = color;
+                document.getElementById('brand_charter_text').value = data.charter_text || '';
+            }
+        } catch (e) {
+            console.warn('Could not prefetch branding config:', e);
+        }
+
+        const modal = document.getElementById('brandingModal');
+        const card = document.getElementById('brandingModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('brand_company_name').focus();
+        }, 10);
+    }
+
+    function closeBrandingModal() {
+        const modal = document.getElementById('brandingModal');
+        const card = document.getElementById('brandingModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    async function handleBrandingSubmit(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitBranding');
+        const errorMsg = document.getElementById('brandingErrorMsg');
+        const errorText = document.getElementById('brandingErrorText');
+
+        const payload = {
+            company_name: document.getElementById('brand_company_name').value.trim(),
+            portal_title: document.getElementById('brand_portal_title').value.trim(),
+            portal_subtitle: document.getElementById('brand_portal_subtitle').value.trim(),
+            logo_url: document.getElementById('brand_logo_url').value.trim(),
+            primary_color: document.getElementById('brand_primary_color').value.trim() || '#171717',
+            charter_text: document.getElementById('brand_charter_text').value.trim()
+        };
+
+        btn.disabled = true;
+        btn.innerHTML = '<span>Enregistrement...</span>';
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/admin/branding', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeBrandingModal();
+                showToast(data.message || 'Identité de marque mise à jour !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                errorText.textContent = data.detail || 'Erreur lors de la mise à jour';
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur réseau ou communication serveur';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Enregistrer la Marque</span><i data-lucide="check" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    async function refreshLiveClients() {
+        const icon = document.getElementById('iconRefreshLiveClients');
+        if (icon) icon.classList.add('animate-spin');
+
+        try {
+            const res = await fetch('/api/admin/clients/live', { headers: getAuthHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                const tbody = document.getElementById('liveClientsTbody');
+                if (tbody && Array.isArray(data.clients)) {
+                    if (data.clients.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-neutral-400">Aucun client sans fil connecté actuellement.</td></tr>`;
+                    } else {
+                        tbody.innerHTML = data.clients.map(c => {
+                            const cleanMac = c.mac.replace(/:/g, '');
+                            const rssiColor = c.rssi >= -60 ? 'bg-emerald-500' : (c.rssi >= -75 ? 'bg-amber-500' : 'bg-rose-500');
+                            const rssiText = c.rssi >= -60 ? 'Excellent' : (c.rssi >= -75 ? 'Correct' : 'Faible');
+                            const safeName = (c.guest_name || c.hostname || 'Invité sans nom').replace(/'/g, "\\'");
+                            const safeIp = (c.ip || '').replace(/'/g, "\\'");
+                            return `
+                                <tr class="hover:bg-neutral-50/60 transition" id="clientRow_${cleanMac}">
+                                    <td class="py-3.5 px-4">
+                                        <div class="font-bold text-neutral-900">${c.guest_name || c.hostname || 'Invité sans nom'}</div>
+                                        <div class="text-[11px] text-neutral-400 font-mono">${c.hostname || "Nom d'hôte inconnu"}</div>
+                                    </td>
+                                    <td class="py-3.5 px-4 font-mono text-[11px]">
+                                        <div class="text-neutral-800 font-semibold">${c.mac}</div>
+                                        <div class="text-neutral-500">${c.ip || 'IP DHCP en attente'}</div>
+                                    </td>
+                                    <td class="py-3.5 px-4">
+                                        <div class="font-semibold text-neutral-700 flex items-center gap-1.5">
+                                            <i data-lucide="radio" class="w-3 h-3 text-neutral-500"></i>
+                                            <span>${c.ap_name}</span>
+                                        </div>
+                                        <div class="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-1">
+                                            <span class="inline-block w-1.5 h-1.5 rounded-full ${rssiColor}"></span>
+                                            <span class="font-medium">${c.rssi} dBm (${rssiText})</span>
+                                        </div>
+                                    </td>
+                                    <td class="py-3.5 px-4 font-mono text-[11px] text-neutral-600">
+                                        <div class="flex items-center gap-1 text-emerald-700"><span>↓</span> <span>${c.rx_mb} MB</span></div>
+                                        <div class="flex items-center gap-1 text-neutral-400"><span>↑</span> <span>${c.tx_mb} MB</span></div>
+                                    </td>
+                                    <td class="py-3.5 px-4 text-neutral-600 font-medium text-xs">
+                                        ${c.connected_duration_min} min
+                                    </td>
+                                    <td class="py-3.5 px-4 text-right">
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <button type="button" onclick="disconnectClient('${c.mac}')"
+                                                    class="py-1 px-2.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-[11px] font-semibold transition flex items-center gap-1">
+                                                <i data-lucide="zap-off" class="w-3 h-3 text-amber-600"></i>
+                                                <span>Déconnecter</span>
+                                            </button>
+                                            <button type="button" onclick="openBanModal('${c.mac}', '${safeIp}', '${safeName}')"
+                                                    class="py-1 px-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold transition flex items-center gap-1">
+                                                <i data-lucide="ban" class="w-3 h-3 text-rose-600"></i>
+                                                <span>Bannir</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                        lucide.createIcons();
+                    }
+                }
+                showToast('Liste des connexions temps réel actualisée');
+            }
+        } catch (e) {
+            console.error('Erreur refresh live clients:', e);
+        } finally {
+            if (icon) icon.classList.remove('animate-spin');
         }
     }
 </script>

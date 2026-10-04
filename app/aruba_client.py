@@ -59,6 +59,26 @@ class BaseArubaClient(abc.ABC):
     def clean_expired_passes(self) -> List[str]:
         pass
 
+    @abc.abstractmethod
+    def extend_guest_pass(self, guest_id: str, additional_hours: float) -> Optional[GuestAccess]:
+        pass
+
+    @abc.abstractmethod
+    def get_connected_clients(self) -> List[dict]:
+        pass
+
+    @abc.abstractmethod
+    def disconnect_client(self, mac_address: str) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def blacklist_client(self, mac_address: str, reason: str = "", actor: str = "admin") -> bool:
+        pass
+
+    @abc.abstractmethod
+    def unblacklist_client(self, mac_address: str, actor: str = "admin") -> bool:
+        pass
+
 class MockArubaClient(BaseArubaClient):
     """
     Mock network client for Homelab testing or standalone operation.
@@ -67,6 +87,7 @@ class MockArubaClient(BaseArubaClient):
     def __init__(self, db_path: str = "active_passes.json"):
         self.db_path = db_path
         self._passes: Dict[str, dict] = {}
+        self._disconnected_macs: set = set()
         self._load_db()
 
     def _load_db(self):
@@ -234,6 +255,117 @@ class MockArubaClient(BaseArubaClient):
         if revoked_ids:
             self._save_db()
         return revoked_ids
+
+    def extend_guest_pass(self, guest_id: str, additional_hours: float) -> Optional[GuestAccess]:
+        """Extend expiration of an existing pass by additional_hours."""
+        if guest_id in self._passes:
+            data = self._passes[guest_id]
+            try:
+                current_exp = datetime.fromisoformat(data["expires_at"])
+            except Exception:
+                current_exp = datetime.now()
+            
+            base_time = max(datetime.now(), current_exp)
+            new_exp = base_time + timedelta(hours=additional_hours)
+            data["expires_at"] = new_exp.isoformat()
+            data["duration_hours"] = float(data.get("duration_hours", 0)) + float(additional_hours)
+            data["is_active"] = True
+            self._save_db()
+
+            try:
+                db.extend_pass(guest_id, additional_hours)
+                db.log_audit_event("PASS_EXTENDED", actor="portal", target=guest_id, details=f"Prolongation de {additional_hours}h (nouvelle expiration: {new_exp.strftime('%d/%m/%Y %H:%M')})")
+            except Exception as e:
+                logger.warning(f"Failed to extend pass in SQLite: {e}")
+
+            logger.info(f"Extended guest pass {guest_id} by {additional_hours}h. New expiry: {new_exp}")
+            return self._to_guest_access(data)
+        return None
+
+    def get_connected_clients(self) -> List[dict]:
+        """Simulate or query live connected Wi-Fi radio clients on the APs."""
+        clients = []
+        active_passes = self.list_active_passes()
+        ap_names = ["AP-Accueil-01", "AP-Reunion-Nord", "AP-Hall-Central", "AP-Etage-1"]
+
+        for idx, p in enumerate(active_passes):
+            clean_hex = abs(hash(p.id)) % 0xFFFFFF
+            mac = f"F4:D4:88:{clean_hex >> 16 & 0xFF:02X}:{clean_hex >> 8 & 0xFF:02X}:{clean_hex & 0xFF:02X}"
+            if mac in self._disconnected_macs:
+                continue
+
+            ap = ap_names[idx % len(ap_names)]
+            signal = -50 - (idx * 5 % 23)
+            data_mb = round(15.4 + (idx * 27.8) % 450, 1)
+            connected_min = 12 + (idx * 17) % 180
+
+            clients.append({
+                "mac": mac,
+                "ip": p.client_ip or f"192.168.190.{20 + idx}",
+                "guest_name": p.guest_name,
+                "hostname": p.guest_name.replace(" ", "-") if p.guest_name else "Appareil-Invite",
+                "guest_id": p.id,
+                "profile": p.profile,
+                "ap_name": ap,
+                "ssid": p.ssid,
+                "rssi": signal,
+                "signal_dbm": signal,
+                "signal_quality": "Excellent" if signal > -60 else ("Bon" if signal > -70 else "Moyen"),
+                "rx_mb": round(data_mb * 0.72, 1),
+                "tx_mb": round(data_mb * 0.28, 1),
+                "data_mb": data_mb,
+                "connected_duration_min": connected_min,
+                "connected_minutes": connected_min,
+                "is_banned": db.is_mac_banned(mac)
+            })
+
+        if not clients and "FA:16:3E:44:8A:12" not in self._disconnected_macs:
+            # Provide sample live station for demonstration
+            clients.append({
+                "mac": "FA:16:3E:44:8A:12",
+                "ip": "192.168.190.45",
+                "guest_name": "Station Visiteur Démo",
+                "hostname": "iPhone-Visiteur",
+                "guest_id": "demo-station-1",
+                "profile": "standard",
+                "ap_name": "AP-Accueil-01",
+                "ssid": self.ssid,
+                "rssi": -55,
+                "signal_dbm": -55,
+                "signal_quality": "Excellent",
+                "rx_mb": 18.4,
+                "tx_mb": 4.2,
+                "data_mb": 22.6,
+                "connected_duration_min": 24,
+                "connected_minutes": 24,
+                "is_banned": db.is_mac_banned("FA:16:3E:44:8A:12")
+            })
+
+        return clients
+
+    def disconnect_client(self, mac_address: str) -> bool:
+        """Kick client off the Wi-Fi AP."""
+        clean_mac = mac_address.strip().upper()
+        self._disconnected_macs.add(clean_mac)
+        db.log_audit_event("CLIENT_DISCONNECTED", actor="admin", target=clean_mac, details="Déconnexion forcée depuis le panel admin")
+        logger.info(f"Client {clean_mac} forcefully disconnected.")
+        return True
+
+    def blacklist_client(self, mac_address: str, reason: str = "", actor: str = "admin") -> bool:
+        """Disconnect and ban MAC address."""
+        clean_mac = mac_address.strip().upper()
+        self.disconnect_client(clean_mac)
+        db.ban_mac(clean_mac, reason=reason, actor=actor)
+        logger.info(f"Client {clean_mac} blacklisted by {actor}.")
+        return True
+
+    def unblacklist_client(self, mac_address: str, actor: str = "admin") -> bool:
+        """Remove MAC address from blacklist."""
+        clean_mac = mac_address.strip().upper()
+        if clean_mac in self._disconnected_macs:
+            self._disconnected_macs.remove(clean_mac)
+        return db.unban_mac(clean_mac, actor=actor)
+
 
 
 class ArubaInstantClient(MockArubaClient):

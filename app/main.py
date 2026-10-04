@@ -94,14 +94,20 @@ async def home_dashboard(request: Request):
     allowed_sponsor_domains = db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS)
     smtp_cfg = notification_service.get_smtp_config()
     duration_presets = db.get_duration_presets()
+    branding = db.get_branding()
+    connected_clients = aruba_client.get_connected_clients()
+    banned_macs = db.list_banned_macs()
     
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
-            "app_title": settings.APP_TITLE,
+            "app_title": branding.get("portal_title") or settings.APP_TITLE,
+            "branding": branding,
             "ssid": settings.WIFI_SSID,
             "active_passes": active_passes,
+            "connected_clients": connected_clients,
+            "banned_macs": banned_macs,
             "profiles": profiles,
             "default_profile": default_profile,
             "aruba_mode": settings.ARUBA_MODE,
@@ -261,11 +267,13 @@ async def view_guest_voucher(request: Request, guest_id: str):
     profile_info = profile_manager.get(guest.profile)
     email_sent = request.query_params.get("email_sent") == "true"
     
+    branding = db.get_branding()
     return templates.TemplateResponse(
         request=request,
         name="view.html",
         context={
-            "app_title": settings.APP_TITLE,
+            "app_title": branding.get("portal_title") or settings.APP_TITLE,
+            "branding": branding,
             "guest": guest,
             "profile_info": profile_info,
             "email_sent": email_sent
@@ -950,6 +958,148 @@ async def api_admin_test_email(payload: TestEmailPayload, request: Request):
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"success": True, "message": message}
+
+# -----------------------------------------------------------------------------
+# PASS PROLONGATION & EXTENSION ENDPOINTS
+# -----------------------------------------------------------------------------
+
+class ExtendPassPayload(BaseModel):
+    additional_hours: float = 2.0
+
+@app.post("/api/guests/{guest_id}/extend")
+async def api_extend_guest_pass(guest_id: str, payload: ExtendPassPayload, request: Request):
+    """Extend validity duration of an existing pass."""
+    if payload.additional_hours <= 0 or payload.additional_hours > 720:
+        raise HTTPException(status_code=400, detail="La durée de prolongation doit être comprise entre 1 et 720 heures.")
+    
+    updated = aruba_client.extend_guest_pass(guest_id, payload.additional_hours)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Accès invité introuvable ou expiré.")
+
+    return {
+        "success": True,
+        "guest_id": guest_id,
+        "additional_hours": payload.additional_hours,
+        "extended_hours": payload.additional_hours,
+        "new_expires_at": updated.expires_at.isoformat(),
+        "expires_at_formatted": updated.expires_at.strftime("%d/%m/%Y à %H:%M"),
+        "remaining_seconds": updated.remaining_seconds,
+        "message": f"Accès prolongé de {payload.additional_hours}h avec succès !"
+    }
+
+@app.get("/extend/{guest_id}", response_class=HTMLResponse)
+async def web_extend_pass_page(request: Request, guest_id: str, hours: Optional[float] = None):
+    """Web page allowing 1-click prolongation of Wi-Fi pass."""
+    guest = aruba_client.get_guest_pass(guest_id)
+    if not guest:
+        raise HTTPException(status_code=404, detail="Accès invité introuvable ou expiré.")
+
+    extended = False
+    if hours and hours > 0:
+        updated = aruba_client.extend_guest_pass(guest_id, hours)
+        if updated:
+            guest = updated
+            extended = True
+
+    branding = db.get_branding()
+    return templates.TemplateResponse(
+        request=request,
+        name="extend.html",
+        context={
+            "app_title": branding.get("portal_title") or settings.APP_TITLE,
+            "branding": branding,
+            "guest": guest,
+            "extended": extended,
+            "added_hours": hours or 2.0
+        }
+    )
+
+# -----------------------------------------------------------------------------
+# LIVE CLIENTS MONITORING & BANNING (DISCONNECT / BLACKLIST)
+# -----------------------------------------------------------------------------
+
+class ClientActionPayload(BaseModel):
+    mac: Optional[str] = None
+    mac_address: Optional[str] = None
+    ip: Optional[str] = None
+    guest_name: Optional[str] = None
+    reason: Optional[str] = ""
+
+    def get_mac(self) -> str:
+        return (self.mac or self.mac_address or "").strip()
+
+@app.get("/api/admin/clients/live")
+async def api_admin_live_clients(request: Request):
+    """Return live Wi-Fi radio clients connected to APs and banned MACs."""
+    clients = aruba_client.get_connected_clients()
+    banned = db.list_banned_macs()
+    return {
+        "clients": clients,
+        "total_connected": len(clients),
+        "banned_macs": banned
+    }
+
+@app.post("/api/admin/clients/disconnect")
+async def api_admin_disconnect_client(payload: ClientActionPayload, request: Request):
+    """Force disconnect client device from AP."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    target_mac = payload.get_mac()
+    if not target_mac:
+        raise HTTPException(status_code=400, detail="Adresse MAC requise.")
+    success = aruba_client.disconnect_client(target_mac)
+    db.log_audit_event("CLIENT_DISCONNECTED", actor=actor, target=target_mac, details=payload.reason or "Déconnexion manuelle")
+    return {"success": success, "message": f"Appareil {target_mac} déconnecté avec succès."}
+
+@app.post("/api/admin/clients/ban")
+async def api_admin_ban_client(payload: ClientActionPayload, request: Request):
+    """Force disconnect and ban MAC address on network."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    target_mac = payload.get_mac()
+    if not target_mac:
+        raise HTTPException(status_code=400, detail="Adresse MAC requise.")
+    success = aruba_client.blacklist_client(target_mac, reason=payload.reason or "Banni par l'administrateur", actor=actor)
+    db.ban_mac(target_mac, reason=payload.reason or "Banni par l'administrateur", actor=actor, ip=payload.ip, guest_name=payload.guest_name)
+    return {"success": success, "message": f"Appareil {target_mac} banni avec succès du réseau."}
+
+@app.delete("/api/admin/clients/ban/{mac}")
+async def api_admin_unban_client(mac: str, request: Request):
+    """Remove MAC address from blacklist."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    success = aruba_client.unblacklist_client(mac, actor=actor)
+    return {"success": success, "message": f"Appareil {mac} débanni avec succès."}
+
+# -----------------------------------------------------------------------------
+# BRANDING & WHITE-LABELING MANAGEMENT
+# -----------------------------------------------------------------------------
+
+class BrandingPayload(BaseModel):
+    company_name: Optional[str] = None
+    portal_title: Optional[str] = None
+    portal_subtitle: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    accent_color: Optional[str] = None
+    charter_text: Optional[str] = None
+    custom_charter: Optional[str] = None
+    footer_text: Optional[str] = None
+
+@app.get("/api/admin/branding")
+async def api_admin_get_branding():
+    """Retrieve dynamic branding settings."""
+    return db.get_branding()
+
+@app.post("/api/admin/branding")
+async def api_admin_update_branding(payload: BrandingPayload, request: Request):
+    """Update dynamic branding settings."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    db.set_branding(payload.model_dump(exclude_unset=True))
+    db.log_audit_event("BRANDING_UPDATED", actor=actor, details="Mise à jour de l'identité visuelle")
+    return {"success": True, "branding": db.get_branding(), "message": "Identité visuelle mise à jour avec succès !"}
+
 
 
 

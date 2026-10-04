@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Prolonger mon Accès Wi-Fi - {{ guest.guest_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto space-y-6">
+
+    <!-- Back Link -->
+    <div class="flex items-center justify-between no-print">
+        <a href="/guest/{{ guest.id }}" class="inline-flex items-center gap-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition py-1.5">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>Retour à mon billet d'accès</span>
+        </a>
+    </div>
+
+    <!-- Main Extension Card -->
+    <div class="bg-white border border-neutral-200/90 rounded-3xl p-7 sm:p-8 shadow-[0_12px_40px_rgba(0,0,0,0.04)] text-center space-y-6">
+        
+        {% if extended %}
+        <!-- Success State -->
+        <div class="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200/70 flex items-center justify-center text-emerald-600 mx-auto">
+            <i data-lucide="check-circle-2" class="w-7 h-7"></i>
+        </div>
+
+        <div>
+            <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold tracking-wider uppercase inline-block mb-2">
+                Prolongation Confirmée
+            </span>
+            <h1 class="text-xl font-extrabold text-neutral-900 tracking-tight">Accès Prolongé avec Succès !</h1>
+            <p class="text-xs text-neutral-500 mt-1">Votre connexion Wi-Fi a été étendue de {{ added_hours }} heure{% if added_hours > 1 %}s{% endif %}.</p>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80 text-left space-y-2 text-xs">
+            <div class="flex justify-between">
+                <span class="text-neutral-500">Bénéficiaire :</span>
+                <span class="font-bold text-neutral-900">{{ guest.guest_name }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-neutral-500">Réseau :</span>
+                <span class="font-mono font-bold text-neutral-900">{{ guest.ssid }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-neutral-500">Nouvelle fin de validité :</span>
+                <strong class="font-bold text-emerald-700">{{ guest.expires_at.strftime('%d/%m/%Y à %H:%M') }}</strong>
+            </div>
+        </div>
+
+        <div class="pt-2">
+            <a href="/guest/{{ guest.id }}" class="w-full py-3 px-4 rounded-2xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-2">
+                <i data-lucide="ticket" class="w-4 h-4"></i>
+                <span>Voir mon billet d'accès</span>
+            </a>
+        </div>
+
+        {% else %}
+        <!-- Request Extension State -->
+        <div class="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200/70 flex items-center justify-center text-amber-600 mx-auto">
+            <i data-lucide="clock" class="w-7 h-7"></i>
+        </div>
+
+        <div>
+            <span class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold tracking-wider uppercase inline-block mb-2">
+                Prolongation de Session
+            </span>
+            <h1 class="text-xl font-extrabold text-neutral-900 tracking-tight">Prolonger votre Accès Wi-Fi</h1>
+            <p class="text-xs text-neutral-500 mt-1">Sélectionnez la durée supplémentaire souhaitée pour continuer à naviguer.</p>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-neutral-50 border border-neutral-200/80 text-left space-y-2 text-xs">
+            <div class="flex justify-between">
+                <span class="text-neutral-500">Bénéficiaire :</span>
+                <span class="font-bold text-neutral-900">{{ guest.guest_name }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-neutral-500">Fin de validité actuelle :</span>
+                <strong class="font-bold text-rose-600">{{ guest.expires_at.strftime('%d/%m/%Y à %H:%M') }}</strong>
+            </div>
+        </div>
+
+        <!-- Quick Choices -->
+        <div class="space-y-2.5 pt-1">
+            <span class="block text-[11px] font-bold uppercase tracking-wider text-neutral-400 text-center">
+                Choisir une durée supplémentaire
+            </span>
+            <div class="grid grid-cols-2 gap-2.5">
+                <a href="/extend/{{ guest.id }}?hours=1" class="py-3 px-3 rounded-2xl border border-neutral-200 hover:border-neutral-900 bg-white hover:bg-neutral-50 text-neutral-900 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-3xs">
+                    <i data-lucide="plus" class="w-3.5 h-3.5 text-neutral-500"></i>
+                    <span>+ 1 Heure</span>
+                </a>
+                <a href="/extend/{{ guest.id }}?hours=2" class="py-3 px-3 rounded-2xl border border-neutral-900 bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs">
+                    <i data-lucide="plus" class="w-3.5 h-3.5 text-amber-400"></i>
+                    <span>+ 2 Heures (Recommandé)</span>
+                </a>
+                <a href="/extend/{{ guest.id }}?hours=4" class="py-3 px-3 rounded-2xl border border-neutral-200 hover:border-neutral-900 bg-white hover:bg-neutral-50 text-neutral-900 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-3xs">
+                    <i data-lucide="plus" class="w-3.5 h-3.5 text-neutral-500"></i>
+                    <span>+ 4 Heures</span>
+                </a>
+                <a href="/extend/{{ guest.id }}?hours=24" class="py-3 px-3 rounded-2xl border border-neutral-200 hover:border-neutral-900 bg-white hover:bg-neutral-50 text-neutral-900 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-3xs">
+                    <i data-lucide="plus" class="w-3.5 h-3.5 text-neutral-500"></i>
+                    <span>+ 24 Heures (1 jour)</span>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
