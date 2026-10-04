@@ -5,6 +5,19 @@
 {% block content %}
 <div class="max-w-md mx-auto space-y-6">
 
+    <!-- Success banner if email was sent -->
+    {% if email_sent %}
+    <div class="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between no-print shadow-xs">
+        <div class="flex items-center gap-2">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600"></i>
+            <span>Billet d'accès envoyé par e-mail avec succès !</span>
+        </div>
+        <button type="button" onclick="this.parentElement.remove()" class="text-emerald-500 hover:text-emerald-700">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+    </div>
+    {% endif %}
+
     <!-- Top Action Navigation (Hidden when printing) -->
     <div class="flex items-center justify-between no-print">
         <a href="/" class="inline-flex items-center gap-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition py-1.5">
@@ -12,6 +25,10 @@
             <span>Retour à l'accueil</span>
         </a>
         <div class="flex items-center gap-2">
+            <button type="button" onclick="openEmailModal()" class="p-2 sm:px-3 sm:py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold shadow-2xs transition flex items-center gap-1.5" title="Envoyer par email">
+                <i data-lucide="mail" class="w-3.5 h-3.5 text-neutral-500"></i>
+                <span class="hidden sm:inline">E-mail</span>
+            </button>
             <a href="/guest/{{ guest.id }}/qr.png" download class="p-2 sm:px-3 sm:py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold shadow-2xs transition flex items-center gap-1.5" title="Télécharger le QR Code PNG">
                 <i data-lucide="download" class="w-3.5 h-3.5"></i>
                 <span class="hidden sm:inline">Télécharger</span>
@@ -118,6 +135,23 @@
                     <span>Expiration :</span>
                     <strong class="font-semibold text-rose-600">{{ guest.expires_at.strftime('%d/%m/%Y à %H:%M') }}</strong>
                 </div>
+                {% if guest.sponsor_name %}
+                <div class="flex items-center justify-between">
+                    <span>Parrain d'entreprise :</span>
+                    <strong class="font-semibold text-neutral-800">{{ guest.sponsor_name }} {% if guest.sponsor_email %}({{ guest.sponsor_email }}){% endif %}</strong>
+                </div>
+                {% endif %}
+                {% if guest.guest_email %}
+                <div class="flex items-center justify-between">
+                    <span>Email invité :</span>
+                    <div class="flex items-center gap-1">
+                        <span class="font-mono text-neutral-700 text-[10px]">{{ guest.guest_email }}</span>
+                        {% if guest.otp_verified %}
+                        <span class="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">OTP validé</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
                 <div class="flex items-center justify-between">
                     <span>Identifiant unique :</span>
                     <span class="font-mono text-neutral-400 text-[10px]">{{ guest.id }}</span>
@@ -165,4 +199,55 @@
     </div>
 
 </div>
+
+<!-- Email Modal -->
+<div id="emailModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-sm w-full shadow-2xl relative transform transition-all scale-95" id="emailModalCard">
+        <button type="button" onclick="closeEmailModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-900 mb-3">
+            <i data-lucide="send" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-base font-bold text-neutral-900 tracking-tight">Envoyer le billet d'accès</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-4">Le billet complet avec QR Code et identifiants sera expédié par e-mail.</p>
+
+        <form action="/guest/{{ guest.id }}/send-email" method="POST" class="space-y-4">
+            <div>
+                <label for="modal_email" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Adresse e-mail destinataire
+                </label>
+                <input type="email" id="modal_email" name="email" required value="{{ guest.guest_email or '' }}" placeholder="invite@societe.com"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <button type="submit" class="w-full py-2.5 px-4 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                <i data-lucide="mail" class="w-3.5 h-3.5"></i>
+                <span>Envoyer le billet maintenant</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEmailModal() {
+        const modal = document.getElementById('emailModal');
+        const card = document.getElementById('emailModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('modal_email').focus();
+        }, 10);
+    }
+
+    function closeEmailModal() {
+        const modal = document.getElementById('emailModal');
+        const card = document.getElementById('emailModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+</script>
 {% endblock %}

@@ -34,6 +34,18 @@ class Settings(BaseSettings):
     # Cleanup background check (seconds)
     CLEANUP_CHECK_INTERVAL: int = 60
 
+    # SMTP & Notification Settings
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: str = "wifi-guest@entreprise.local"
+    SMTP_TLS: bool = True
+    
+    # Sponsorship & OTP Verification Policies
+    REQUIRE_OTP_VERIFICATION: bool = False
+    ALLOWED_SPONSOR_DOMAINS: Optional[str] = None  # Comma-separated (e.g. "entreprise.com,societe.fr")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

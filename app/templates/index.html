@@ -160,6 +160,88 @@
                     </div>
                 </div>
 
+                <!-- Coordonnées & Réception du Pass par Email (Vérification OTP) -->
+                <div class="p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="mail" class="w-3.5 h-3.5 text-neutral-500"></i>
+                            <span>Coordonnées &amp; Réception par Email</span>
+                        </label>
+                        <span class="text-[10px] text-neutral-400 font-medium">{% if require_otp %}<span class="text-amber-600 font-semibold">Vérification obligatoire</span>{% else %}Optionnel{% endif %}</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <input type="email" id="guest_email" name="guest_email" placeholder="votre-email@exemple.com"
+                                   class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                        </div>
+                        <div>
+                            <input type="tel" id="guest_phone" name="guest_phone" placeholder="Numéro mobile (optionnel)"
+                                   class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                        </div>
+                    </div>
+
+                    <!-- OTP verification row -->
+                    <div class="flex flex-wrap items-center gap-2 pt-1">
+                        <button type="button" id="btnRequestOtp" onclick="requestOtpCode()"
+                                class="py-1.5 px-3 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5">
+                            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-neutral-600"></i>
+                            <span id="btnRequestOtpText">Vérifier par code OTP</span>
+                        </button>
+                        
+                        <div id="otpInputGroup" class="hidden flex items-center gap-1.5">
+                            <input type="text" id="otp_code" name="otp_code" maxlength="6" placeholder="Code à 6 chiffres"
+                                   class="w-32 px-3 py-1.5 rounded-xl border border-neutral-300 bg-white font-mono font-bold text-center text-xs tracking-widest text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900">
+                            <button type="button" onclick="verifyOtpCode()" class="py-1.5 px-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition">
+                                Valider
+                            </button>
+                        </div>
+
+                        <span id="otpStatusBadge" class="hidden text-xs font-semibold flex items-center gap-1"></span>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-1">
+                        <input type="checkbox" id="send_email_voucher" name="send_email_voucher" checked
+                               class="rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
+                        <label for="send_email_voucher" class="text-xs text-neutral-600 cursor-pointer select-none">
+                            M'envoyer une copie de mon billet d'accès par e-mail
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Parrainage Collaborateur Interne (Sponsorship) -->
+                <div class="pt-1">
+                    <button type="button" onclick="toggleSponsorField()" class="text-xs font-medium text-neutral-500 hover:text-neutral-900 transition flex items-center gap-1.5">
+                        <i data-lucide="building" class="w-3.5 h-3.5"></i>
+                        <span id="sponsorToggleText">Parrainé par un collaborateur interne (Optionnel)</span>
+                    </button>
+                    <div id="sponsorContainer" class="hidden mt-2 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80 space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label for="sponsor_name" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">
+                                    Nom du collaborateur
+                                </label>
+                                <input type="text" id="sponsor_name" name="sponsor_name" placeholder="Ex: Alexandre Dupont"
+                                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                            </div>
+                            <div>
+                                <label for="sponsor_email" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">
+                                    Email pro du parrain {% if allowed_sponsor_domains %}<span class="text-neutral-400 font-normal">({{ allowed_sponsor_domains }})</span>{% endif %}
+                                </label>
+                                <input type="email" id="sponsor_email" name="sponsor_email" placeholder="a.dupont@entreprise.com"
+                                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 pt-1">
+                            <input type="checkbox" id="send_sponsor_copy" name="send_sponsor_copy" checked
+                                   class="rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
+                            <label for="send_sponsor_copy" class="text-xs text-neutral-600 cursor-pointer select-none">
+                                Envoyer une copie du pass au parrain par e-mail
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Terms of Use Acceptance & Legal Compliance -->
                 <div class="p-3.5 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 space-y-2">
                     <div class="flex items-start gap-2.5">
@@ -222,7 +304,12 @@
                     <i data-lucide="users" class="w-4 h-4 text-neutral-500"></i>
                     <span>Accès Invités en cours</span>
                 </h3>
-                <span class="text-xs text-neutral-400">Révocation automatique à expiration</span>
+                <div class="flex items-center gap-2">
+                    <a href="/api/admin/audit/export?format=csv" class="py-1 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold shadow-2xs transition flex items-center gap-1.5" title="Télécharger le registre d'audit légal">
+                        <i data-lucide="download" class="w-3.5 h-3.5 text-neutral-500"></i>
+                        <span>Export Légal (CSV)</span>
+                    </a>
+                </div>
             </div>
 
             {% if active_passes %}
@@ -278,6 +365,25 @@
                                     {% endif %}
                                 </span>
                             </div>
+                            {% if guest.sponsor_name %}
+                            <div class="flex items-center justify-between pt-1 border-t border-neutral-200/50">
+                                <span class="text-[10px] text-neutral-400">Parrain :</span>
+                                <span class="text-[10px] font-semibold text-neutral-700 truncate max-w-[150px]">
+                                    {{ guest.sponsor_name }}
+                                </span>
+                            </div>
+                            {% endif %}
+                            {% if guest.guest_email %}
+                            <div class="flex items-center justify-between pt-1 border-t border-neutral-200/50">
+                                <span class="text-[10px] text-neutral-400">Email :</span>
+                                <div class="flex items-center gap-1">
+                                    <span class="font-mono text-[10px] text-neutral-600 truncate max-w-[130px]">{{ guest.guest_email }}</span>
+                                    {% if guest.otp_verified %}
+                                    <span class="px-1 py-0.2 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">OTP</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
                             <div class="flex items-center justify-between pt-1 border-t border-neutral-200/50">
                                 <span class="text-[10px] text-neutral-400">IP source :</span>
                                 <span class="font-mono text-[10px] font-medium text-neutral-600 bg-white px-1.5 py-0.5 rounded border border-neutral-200">
@@ -838,6 +944,93 @@
         } else {
             container.classList.add('hidden');
             text.textContent = 'Ajouter une note ou un mémo (optionnel)';
+        }
+    }
+
+    // Toggle Sponsor Field
+    function toggleSponsorField() {
+        const container = document.getElementById('sponsorContainer');
+        const text = document.getElementById('sponsorToggleText');
+        if (container.classList.contains('hidden')) {
+            container.classList.remove('hidden');
+            text.textContent = 'Masquer le parrainage';
+            document.getElementById('sponsor_name').focus();
+        } else {
+            container.classList.add('hidden');
+            text.textContent = 'Parrainé par un collaborateur interne (Optionnel)';
+        }
+    }
+
+    // OTP Request and Verification
+    let otpDestination = '';
+
+    async function requestOtpCode() {
+        const email = document.getElementById('guest_email').value.trim();
+        const phone = document.getElementById('guest_phone').value.trim();
+        const dest = email || phone;
+        if (!dest) {
+            showToast("Veuillez renseigner votre email ou mobile d'abord", "error");
+            document.getElementById('guest_email').focus();
+            return;
+        }
+
+        const btnText = document.getElementById('btnRequestOtpText');
+        btnText.textContent = 'Envoi...';
+
+        try {
+            const resp = await fetch('/api/otp/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ destination: dest, type: email ? 'email' : 'sms' })
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+                otpDestination = dest;
+                document.getElementById('otpInputGroup').classList.remove('hidden');
+                document.getElementById('btnRequestOtp').classList.add('hidden');
+                document.getElementById('otp_code').focus();
+                if (data.simulated && data.demo_code) {
+                    showToast(`Code OTP envoyé ! (Lab/Démo : ${data.demo_code})`, "success");
+                } else {
+                    showToast(data.message || "Code de vérification envoyé !", "success");
+                }
+            } else {
+                showToast(data.detail || "Erreur lors de l'envoi", "error");
+                btnText.textContent = 'Réessayer';
+            }
+        } catch (e) {
+            showToast("Erreur de communication avec le serveur", "error");
+            btnText.textContent = 'Réessayer';
+        }
+    }
+
+    async function verifyOtpCode() {
+        const code = document.getElementById('otp_code').value.trim();
+        if (!code) {
+            showToast("Veuillez saisir le code à 6 chiffres", "error");
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/otp/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ destination: otpDestination, code: code })
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+                document.getElementById('otpInputGroup').classList.add('hidden');
+                const badge = document.getElementById('otpStatusBadge');
+                badge.className = 'text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl flex items-center gap-1';
+                badge.innerHTML = '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i><span>Identité vérifiée</span>';
+                badge.classList.remove('hidden');
+                lucide.createIcons();
+                showToast("Code vérifié avec succès !", "success");
+            } else {
+                showToast(data.detail || "Code invalide", "error");
+            }
+        } catch (e) {
+            showToast("Erreur lors de la vérification", "error");
         }
     }
 

@@ -19,11 +19,18 @@ Solution complète, sécurisée et épurée de gestion des accès Wi-Fi invités
   * **Profil par défaut** : Présélectionné et libre d'accès pour tous les invités sans code.
   * **Profils protégés** : Accès restreint par mot de passe spécifique (ex: invités VIP, équipes de tournage, streaming) ou réservé aux administrateurs.
   * **Gestion Admin complète** : Création, modification et suppression des profils et débits synchronisés en direct sur la borne Aruba via SSH.
-* 📋 **Conformité Légale & Charte d'Utilisation** :
-  * **Traçabilité obligatoire** : Enregistrement de l'adresse IP source, horodatage, signature User-Agent et clé émise dans le journal d'audit.
-  * **Charte d'utilisation intégrée** : Validation obligatoire avant génération du pass (interdiction téléchargement illégal, P2P, malwares, respect RGPD / Hadopi).
+* ✉️ **Vérification d'Identité par Code OTP (Email / SMS)** :
+  * Validation facultative ou obligatoire de l'identité du visiteur via un code de sécurité éphémère à 6 chiffres.
+  * Envoi direct du pass et du QR Code par e-mail au visiteur.
+* 🏢 **Parrainage Interne d'Entreprise (Corporate Sponsorship)** :
+  * Déclaration du collaborateur hôte (nom et email pro) avec validation du nom de domaine d'entreprise (`@societe.com`).
+  * Envoi automatique d'une copie du billet d'accès au collaborateur parrain.
+* 📋 **Conformité Légale & Traçabilité (Registre d'Audit)** :
+  * **Traçabilité obligatoire** : Enregistrement de l'adresse IP source, horodatage, User-Agent, email/mobile, parrain et clé émise.
+  * **Charte d'utilisation intégrée** : Validation obligatoire avant génération du pass (respect RGPD, décret sur la conservation des données).
+  * **Export Légal en un clic (CSV)** : Téléchargement du registre d'audit conforme avec encodage UTF-8 Excel.
 * ⏱️ **Révocation automatique** : Tâche de fond périodique révoquant les clés expirées sur l'AP à la minute près.
-* 🎨 **Design Épuré Blanc Minimaliste** : Interface moderne, typographie *Plus Jakarta Sans* / *JetBrains Mono*, responsive, avec vue « Billet d'embarquement » optimisée pour smartphone et impression papier.
+* 🎨 **Design Épuré Blanc Minimaliste** : Interface moderne, typographie *Plus Jakarta Sans* / *JetBrains Mono*, responsive, avec vue « Billet d'embarquement » optimisée pour smartphone, impression et expédition email.
 
 ---
 
@@ -42,6 +49,7 @@ Solution complète, sécurisée et épurée de gestion des accès Wi-Fi invités
 │   ├── config.py                # Configuration & variables d'environnement (Pydantic Settings)
 │   ├── main.py                  # Application FastAPI & routes API/Web
 │   ├── models.py                # Schémas de données Pydantic
+│   ├── notification_service.py  # Service de validation OTP et notifications email (Sponsorship & Vouchers)
 │   ├── profile_manager.py       # Gestionnaire persistant des profils & synchronisation AP
 │   ├── qr_generator.py          # Générateur de QR codes Wi-Fi
 │   ├── static/

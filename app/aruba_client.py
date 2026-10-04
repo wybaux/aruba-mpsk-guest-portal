@@ -26,7 +26,19 @@ class BaseArubaClient(abc.ABC):
 
     @abc.abstractmethod
     def create_guest_pass(
-        self, guest_name: str, duration_hours: float, profile: ProfileEnum, note: Optional[str] = None
+        self,
+        guest_name: str,
+        duration_hours: float,
+        profile: Union[ProfileEnum, str] = "standard",
+        note: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        terms_accepted: bool = True,
+        guest_email: Optional[str] = None,
+        guest_phone: Optional[str] = None,
+        sponsor_name: Optional[str] = None,
+        sponsor_email: Optional[str] = None,
+        otp_verified: bool = False
     ) -> GuestAccess:
         pass
 
@@ -103,7 +115,12 @@ class MockArubaClient(BaseArubaClient):
             note=data.get("note"),
             client_ip=data.get("client_ip"),
             user_agent=data.get("user_agent"),
-            terms_accepted=data.get("terms_accepted", True)
+            terms_accepted=data.get("terms_accepted", True),
+            guest_email=data.get("guest_email"),
+            guest_phone=data.get("guest_phone"),
+            sponsor_name=data.get("sponsor_name"),
+            sponsor_email=data.get("sponsor_email"),
+            otp_verified=data.get("otp_verified", False)
         )
 
     def create_guest_pass(
@@ -114,7 +131,12 @@ class MockArubaClient(BaseArubaClient):
         note: Optional[str] = None,
         client_ip: Optional[str] = None,
         user_agent: Optional[str] = None,
-        terms_accepted: bool = True
+        terms_accepted: bool = True,
+        guest_email: Optional[str] = None,
+        guest_phone: Optional[str] = None,
+        sponsor_name: Optional[str] = None,
+        sponsor_email: Optional[str] = None,
+        otp_verified: bool = False
     ) -> GuestAccess:
         guest_id = f"gst_{secrets.token_hex(4)}"
         password = settings.WIFI_PASSWORD if (settings.WIFI_PASSWORD and settings.WIFI_PASSWORD.strip()) else generate_random_password(10)
@@ -140,13 +162,21 @@ class MockArubaClient(BaseArubaClient):
             "note": note,
             "client_ip": client_ip,
             "user_agent": user_agent,
-            "terms_accepted": terms_accepted
+            "terms_accepted": terms_accepted,
+            "guest_email": guest_email,
+            "guest_phone": guest_phone,
+            "sponsor_name": sponsor_name,
+            "sponsor_email": sponsor_email,
+            "otp_verified": otp_verified
         }
 
         self._passes[guest_id] = pass_data
         self._save_db()
+        sponsor_info = f" | Sponsor: {sponsor_name} ({sponsor_email})" if sponsor_name else ""
+        otp_info = f" | OTP: {'Verified' if otp_verified else 'No'}"
         logger.info(
             f"[AUDIT LOG] Guest Pass {guest_id} generated for '{guest_name}' | "
+            f"Email: {guest_email or 'N/A'}{sponsor_info}{otp_info} | "
             f"IP: {client_ip or 'unknown'} | UA: {user_agent or 'unknown'} | "
             f"Profile: {profile_str} | Terms Accepted: {terms_accepted} | Expires: {expires_at.strftime('%Y-%m-%d %H:%M:%S')}"
         )
@@ -278,7 +308,12 @@ class ArubaInstantClient(MockArubaClient):
         note: Optional[str] = None,
         client_ip: Optional[str] = None,
         user_agent: Optional[str] = None,
-        terms_accepted: bool = True
+        terms_accepted: bool = True,
+        guest_email: Optional[str] = None,
+        guest_phone: Optional[str] = None,
+        sponsor_name: Optional[str] = None,
+        sponsor_email: Optional[str] = None,
+        otp_verified: bool = False
     ) -> GuestAccess:
         # First generate local record with unique password and audit data
         guest_access = super().create_guest_pass(
@@ -288,7 +323,12 @@ class ArubaInstantClient(MockArubaClient):
             note=note,
             client_ip=client_ip,
             user_agent=user_agent,
-            terms_accepted=terms_accepted
+            terms_accepted=terms_accepted,
+            guest_email=guest_email,
+            guest_phone=guest_phone,
+            sponsor_name=sponsor_name,
+            sponsor_email=sponsor_email,
+            otp_verified=otp_verified
         )
 
         role_name = self._get_role_name_for_profile(profile)

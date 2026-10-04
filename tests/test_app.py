@@ -204,3 +204,68 @@ def test_profile_management():
     profiles = {p["id"]: p for p in resp.json()}
     assert "gaming_vip" not in profiles
 
+def test_otp_and_sponsorship():
+    # 1. Request OTP
+    dest = "visiteur@example.com"
+    resp = client.post("/api/otp/request", json={"destination": dest, "type": "email"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    demo_code = data.get("demo_code")
+    assert demo_code is not None
+    assert len(demo_code) == 6
+
+    # 2. Verify invalid OTP
+    resp_invalid = client.post("/api/otp/verify", json={"destination": dest, "code": "000000"})
+    assert resp_invalid.status_code == 400
+
+    # 3. Verify valid OTP
+    resp_valid = client.post("/api/otp/verify", json={"destination": dest, "code": demo_code})
+    assert resp_valid.status_code == 200
+    assert resp_valid.json()["success"] is True
+
+    # 4. Create sponsored guest pass via API
+    payload = {
+        "guest_name": "Jean Dupont",
+        "duration_hours": 4,
+        "profile": "standard",
+        "guest_email": dest,
+        "sponsor_name": "Alice Martin",
+        "sponsor_email": "alice.martin@entreprise.com",
+        "send_email_voucher": True,
+        "terms_accepted": True
+    }
+    resp_guest = client.post("/api/guests", json=payload)
+    assert resp_guest.status_code == 201
+    guest_data = resp_guest.json()
+    assert guest_data["guest_name"] == "Jean Dupont"
+    assert guest_data["sponsor_name"] == "Alice Martin"
+    assert guest_data["guest_email"] == dest
+
+    # 5. Send voucher email via API
+    resp_email = client.post(f"/api/guests/{guest_data['id']}/send-email", json={"recipient_email": "test@dest.com"})
+    assert resp_email.status_code == 200
+    assert resp_email.json()["success"] is True
+
+    # 6. Test web send voucher email form route
+    resp_web_email = client.post(f"/guest/{guest_data['id']}/send-email", data={"email": "autre@dest.com"}, follow_redirects=False)
+    assert resp_web_email.status_code == 303
+    assert "email_sent=true" in resp_web_email.headers["location"]
+
+def test_legal_audit_export():
+    # 1. Export as CSV
+    resp_csv = client.get("/api/admin/audit/export?format=csv")
+    assert resp_csv.status_code == 200
+    assert "text/csv" in resp_csv.headers["content-type"]
+    assert "Content-Disposition" in resp_csv.headers
+    assert "registre_audit_wifi" in resp_csv.headers["Content-Disposition"]
+    assert "Nom_Invite" in resp_csv.text
+    assert "Parrain_Nom" in resp_csv.text
+    assert "Charte_Acceptee" in resp_csv.text
+
+    # 2. Export as JSON
+    resp_json = client.get("/api/admin/audit/export?format=json")
+    assert resp_json.status_code == 200
+    assert isinstance(resp_json.json(), list)
+
+
