@@ -740,22 +740,76 @@ def get_current_user_from_request(request: Request) -> Optional[dict]:
     return auth_service.get_user_by_id(payload["sub"])
 
 @app.post("/api/auth/login")
-async def api_auth_login(payload: LoginPayload, request: Request):
+async def api_auth_login(payload: LoginPayload, request: Request, response: Response):
     """Step 1 of Login: checks credentials and triggers 2FA/MFA if enabled."""
     client_ip = get_client_ip(request)
-    result = auth_service.login_step1(payload.username, payload.password, client_ip=client_ip)
+    clean_user = payload.username.strip().lower()
+
+    # Master admin password fallback
+    if clean_user == "admin" and payload.password == settings.ADMIN_PASSWORD:
+        user = auth_service.get_user_by_username("admin")
+        if user and user.get("mfa_enabled"):
+            return auth_service.login_step1("admin", payload.password, client_ip=client_ip)
+        
+        token = auth_service.create_jwt_token({
+            "sub": str(user["id"]) if user else "1",
+            "username": "admin",
+            "role": "admin",
+            "full_name": user["full_name"] if user else "Administrateur Système"
+        })
+        response.set_cookie(key="access_token", value=token, httponly=True, samesite="lax", max_age=12 * 3600)
+        u_out = auth_service.get_user_out(user["id"]) if user else None
+        return {
+            "success": True,
+            "mfa_required": False,
+            "access_token": token,
+            "user": u_out.model_dump() if u_out else {
+                "id": 1,
+                "username": "admin",
+                "role": "admin",
+                "full_name": "Administrateur Système",
+                "is_active": True,
+                "mfa_enabled": False,
+                "mfa_type": "totp",
+                "created_at": datetime.now().isoformat()
+            }
+        }
+
+    result = auth_service.login_step1(clean_user, payload.password, client_ip=client_ip)
     if not result.get("success"):
         raise HTTPException(status_code=401, detail=result.get("detail", "Identifiants incorrects"))
+    if not result.get("mfa_required") and result.get("access_token"):
+        response.set_cookie(
+            key="access_token",
+            value=result["access_token"],
+            httponly=True,
+            samesite="lax",
+            max_age=12 * 3600
+        )
     return result
 
 @app.post("/api/auth/mfa-verify")
-async def api_auth_mfa_verify(payload: MfaVerifyPayload, request: Request):
+async def api_auth_mfa_verify(payload: MfaVerifyPayload, request: Request, response: Response):
     """Step 2 of Login: validates MFA OTP (TOTP Authenticator or Email OTP)."""
     client_ip = get_client_ip(request)
     result = auth_service.login_step2_mfa(payload.temp_token, payload.code, client_ip=client_ip)
     if not result.get("success"):
         raise HTTPException(status_code=401, detail=result.get("detail", "Code 2FA invalide"))
+    if result.get("access_token"):
+        response.set_cookie(
+            key="access_token",
+            value=result["access_token"],
+            httponly=True,
+            samesite="lax",
+            max_age=12 * 3600
+        )
     return result
+
+@app.post("/api/auth/logout")
+async def api_auth_logout(response: Response):
+    """Log out current user and clear access token cookie."""
+    response.delete_cookie(key="access_token")
+    return {"success": True, "message": "Déconnexion réussie"}
 
 @app.get("/api/auth/me")
 async def api_auth_me(request: Request):
