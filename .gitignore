@@ -17,6 +17,12 @@ aruba_tokens.json
 # Runtime State & Database Files
 # -----------------------------------------------------------------------------
 active_passes.json
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+wifi_guest.db*
 
 # -----------------------------------------------------------------------------
 # Python Bytecode, Builds & Distribution

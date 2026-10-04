@@ -5,6 +5,7 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from pydantic import BaseModel
+import pyotp
 
 from fastapi import FastAPI, Request, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -27,6 +28,16 @@ from app.aruba_client import get_aruba_client
 from app.scheduler import CleanupScheduler
 from app.qr_generator import generate_qr_code_bytes
 from app.notification_service import notification_service
+from app.db import db
+from app.auth_service import (
+    auth_service,
+    UserRole,
+    UserOut,
+    CreateUserSchema,
+    UpdateUserSchema,
+    LoginPayload,
+    MfaVerifyPayload
+)
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +45,8 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger("wifi_guest.main")
+
+app_start_time = datetime.now()
 
 # Initialize Aruba Client
 aruba_client = get_aruba_client()
@@ -54,8 +67,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.APP_TITLE,
-    description="Générateur intelligent de configuration Wi-Fi Invités Homelab avec intégration API Aruba",
-    version="1.1.0",
+    description="Générateur intelligent de configuration Wi-Fi Invités Homelab avec intégration API Aruba et Authentification Sécurisée RBAC / 2FA",
+    version="1.2.0",
     lifespan=lifespan
 )
 
@@ -74,6 +87,8 @@ async def home_dashboard(request: Request):
     active_passes = aruba_client.list_active_passes()
     profiles = profile_manager.get_all()
     default_profile = profile_manager.get_default()
+    users = auth_service.list_users()
+    db_metrics = db.get_metrics()
     
     return templates.TemplateResponse(
         request=request,
@@ -86,7 +101,9 @@ async def home_dashboard(request: Request):
             "default_profile": default_profile,
             "aruba_mode": settings.ARUBA_MODE,
             "require_otp": settings.REQUIRE_OTP_VERIFICATION,
-            "allowed_sponsor_domains": settings.ALLOWED_SPONSOR_DOMAINS
+            "allowed_sponsor_domains": settings.ALLOWED_SPONSOR_DOMAINS,
+            "users": users,
+            "db_metrics": db_metrics
         }
     )
 
@@ -632,11 +649,183 @@ async def export_audit_log(format: str = "csv"):
     )
 
 
+# -----------------------------------------------------------------------------
+# DEVOPS: HEALTH CHECK & PROMETHEUS METRICS
+# -----------------------------------------------------------------------------
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Docker, Kubernetes, and uptime probes."""
+    db_metrics = db.get_metrics()
+    uptime = (datetime.now() - app_start_time).total_seconds()
+    return {
+        "status": "healthy",
+        "uptime_seconds": round(uptime, 1),
+        "app_title": settings.APP_TITLE,
+        "aruba_mode": settings.ARUBA_MODE,
+        "database": {
+            "status": "connected",
+            "file": db_metrics["db_file"],
+            "size_bytes": db_metrics["db_size_bytes"],
+            "active_passes": db_metrics["active_passes"],
+            "total_passes": db_metrics["total_passes"],
+            "total_users": db_metrics["total_users"]
+        }
+    }
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus exposition metrics endpoint (RFC text standard)."""
+    db_metrics = db.get_metrics()
+    uptime = (datetime.now() - app_start_time).total_seconds()
+
+    lines = [
+        "# HELP wifi_guest_uptime_seconds Application uptime in seconds",
+        "# TYPE wifi_guest_uptime_seconds counter",
+        f"wifi_guest_uptime_seconds {uptime:.1f}",
+        "# HELP wifi_guest_active_passes Number of currently active Wi-Fi guest passes",
+        "# TYPE wifi_guest_active_passes gauge",
+        f"wifi_guest_active_passes {db_metrics['active_passes']}",
+        "# HELP wifi_guest_total_passes Total number of guest passes created",
+        "# TYPE wifi_guest_total_passes counter",
+        f"wifi_guest_total_passes {db_metrics['total_passes']}",
+        "# HELP wifi_guest_revoked_passes Number of expired or revoked passes",
+        "# TYPE wifi_guest_revoked_passes gauge",
+        f"wifi_guest_revoked_passes {db_metrics['revoked_or_expired_passes']}",
+        "# HELP wifi_guest_total_users Number of registered admin/operator users",
+        "# TYPE wifi_guest_total_users gauge",
+        f"wifi_guest_total_users {db_metrics['total_users']}",
+        "# HELP wifi_guest_db_size_bytes Size of SQLite database file in bytes",
+        "# TYPE wifi_guest_db_size_bytes gauge",
+        f"wifi_guest_db_size_bytes {db_metrics['db_size_bytes']}"
+    ]
+    return Response(content="\n".join(lines) + "\n", media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+# -----------------------------------------------------------------------------
+# USER AUTHENTICATION & RBAC WITH OTP / 2FA (MFA)
+# -----------------------------------------------------------------------------
+
+def get_current_user_from_request(request: Request) -> Optional[dict]:
+    auth_header = request.headers.get("Authorization")
+    token = None
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1].strip()
+    elif "access_token" in request.cookies:
+        token = request.cookies["access_token"]
+    
+    if not token:
+        return None
+    
+    payload = auth_service.decode_jwt_token(token)
+    if not payload or not payload.get("sub"):
+        return None
+    return auth_service.get_user_by_id(payload["sub"])
+
+@app.post("/api/auth/login")
+async def api_auth_login(payload: LoginPayload, request: Request):
+    """Step 1 of Login: checks credentials and triggers 2FA/MFA if enabled."""
+    client_ip = get_client_ip(request)
+    result = auth_service.login_step1(payload.username, payload.password, client_ip=client_ip)
+    if not result.get("success"):
+        raise HTTPException(status_code=401, detail=result.get("detail", "Identifiants incorrects"))
+    return result
+
+@app.post("/api/auth/mfa-verify")
+async def api_auth_mfa_verify(payload: MfaVerifyPayload, request: Request):
+    """Step 2 of Login: validates MFA OTP (TOTP Authenticator or Email OTP)."""
+    client_ip = get_client_ip(request)
+    result = auth_service.login_step2_mfa(payload.temp_token, payload.code, client_ip=client_ip)
+    if not result.get("success"):
+        raise HTTPException(status_code=401, detail=result.get("detail", "Code 2FA invalide"))
+    return result
+
+@app.get("/api/auth/me")
+async def api_auth_me(request: Request):
+    """Returns currently authenticated user profile."""
+    user = get_current_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    return auth_service.get_user_out(user["id"])
+
+# -----------------------------------------------------------------------------
+# USER MANAGEMENT (ADMIN ONLY)
+# -----------------------------------------------------------------------------
+
+@app.get("/api/admin/users", response_model=List[UserOut])
+async def api_admin_list_users():
+    return auth_service.list_users()
+
+@app.post("/api/admin/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+async def api_admin_create_user(payload: CreateUserSchema, request: Request):
+    try:
+        current = get_current_user_from_request(request)
+        actor = current["username"] if current else "admin"
+        return auth_service.create_user(payload, creator=actor)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.put("/api/admin/users/{user_id}", response_model=UserOut)
+async def api_admin_update_user(user_id: int, payload: UpdateUserSchema, request: Request):
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    updated = auth_service.update_user(user_id, payload, actor=actor)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    return updated
+
+@app.delete("/api/admin/users/{user_id}")
+async def api_admin_delete_user(user_id: int, request: Request):
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    try:
+        success = auth_service.delete_user(user_id, actor=actor)
+        if not success:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        return {"success": True, "message": "Utilisateur supprimé avec succès"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/admin/users/{user_id}/totp-setup")
+async def api_admin_totp_setup(user_id: int):
+    """Generate TOTP QR Code and secret for authenticator apps."""
+    try:
+        return auth_service.setup_totp(user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+class EnableTotpPayload(BaseModel):
+    code: str
+
+@app.post("/api/admin/users/{user_id}/totp-enable")
+async def api_admin_totp_enable(user_id: int, payload: EnableTotpPayload):
+    """Confirm first TOTP code and enable MFA."""
+    user = auth_service.get_user_by_id(user_id)
+    if not user or not user["totp_secret"]:
+        raise HTTPException(status_code=404, detail="Configuration TOTP introuvable")
+    
+    totp = pyotp.TOTP(user["totp_secret"])
+    if not totp.verify(payload.code.strip(), valid_window=1):
+        raise HTTPException(status_code=400, detail="Code de validation incorrect. Assurez-vous que l'heure de votre appareil est synchronisée.")
+
+    auth_service.update_user(user_id, UpdateUserSchema(mfa_enabled=True, mfa_type="totp"))
+    return {"success": True, "message": "Authentification à deux facteurs TOTP activée avec succès !"}
+
+# Backward compatibility login endpoint
 class AdminLoginRequest(CreateGuestRequest.__base__):
     password: str
 
 @app.post("/api/admin/login")
-async def api_admin_login(payload: AdminLoginRequest):
+async def api_admin_login(payload: AdminLoginRequest, request: Request):
+    client_ip = get_client_ip(request)
+    # Check master password
     if payload.password == settings.ADMIN_PASSWORD:
-        return {"success": True, "message": "Authentification réussie"}
+        token = auth_service.create_jwt_token({"sub": "1", "username": "admin", "role": "admin"})
+        return {"success": True, "message": "Authentification réussie", "access_token": token}
+
+    # Try multi-user database login
+    res = auth_service.login_step1("admin", payload.password, client_ip=client_ip)
+    if res.get("success"):
+        return res
     raise HTTPException(status_code=401, detail="Mot de passe incorrect")
+

@@ -1,7 +1,13 @@
 import os
+os.environ["ARUBA_MODE"] = "mock"
+
 import pytest
+import pyotp
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
+
+from app.config import settings
+settings.ARUBA_MODE = "mock"
 
 from app.main import app
 from app.aruba_client import MockArubaClient
@@ -267,5 +273,132 @@ def test_legal_audit_export():
     resp_json = client.get("/api/admin/audit/export?format=json")
     assert resp_json.status_code == 200
     assert isinstance(resp_json.json(), list)
+
+def test_health_and_metrics():
+    # 1. /health
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "healthy"
+    assert "uptime_seconds" in data
+    assert "database" in data
+    assert data["database"]["status"] == "connected"
+    assert "active_passes" in data["database"]
+    assert "total_users" in data["database"]
+
+    # 2. /metrics
+    resp_metrics = client.get("/metrics")
+    assert resp_metrics.status_code == 200
+    assert "text/plain" in resp_metrics.headers["content-type"]
+    text = resp_metrics.text
+    assert "wifi_guest_uptime_seconds" in text
+    assert "wifi_guest_active_passes" in text
+    assert "wifi_guest_total_passes" in text
+    assert "wifi_guest_total_users" in text
+    assert "wifi_guest_db_size_bytes" in text
+
+import uuid
+
+def test_rbac_user_management_and_mfa():
+    test_uname = f"op_{uuid.uuid4().hex[:6]}"
+    # 1. Create a new operator user
+    user_payload = {
+        "username": test_uname,
+        "full_name": "Test Opérateur",
+        "email": f"{test_uname}@example.com",
+        "role": "operator",
+        "password": "SecurePassword123!",
+        "is_active": True
+    }
+    resp = client.post("/api/admin/users", json=user_payload)
+    assert resp.status_code == 201
+    created_user = resp.json()
+    user_id = created_user["id"]
+    assert created_user["username"] == test_uname
+    assert created_user["role"] == "operator"
+    assert created_user["mfa_enabled"] is False
+
+    # 2. List users and verify existence
+    resp_users = client.get("/api/admin/users")
+    assert resp_users.status_code == 200
+    usernames = [u["username"] for u in resp_users.json()]
+    assert test_uname in usernames
+
+    # 3. Test Step 1 Login with direct password (before 2FA)
+    login_step1 = client.post("/api/auth/login", json={
+        "username": test_uname,
+        "password": "SecurePassword123!"
+    })
+    assert login_step1.status_code == 200
+    l_data = login_step1.json()
+    assert l_data["success"] is True
+    assert l_data["mfa_required"] is False
+    token = l_data["access_token"]
+    assert token is not None
+
+    # 4. Verify /api/auth/me with Bearer token
+    me_resp = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me_resp.status_code == 200
+    assert me_resp.json()["username"] == test_uname
+
+    # 5. Setup TOTP 2FA for this user
+    setup_resp = client.post(f"/api/admin/users/{user_id}/totp-setup")
+    assert setup_resp.status_code == 200
+    s_data = setup_resp.json()
+    assert "secret" in s_data
+    assert "qr_code_base64" in s_data
+    assert "manual_code" in s_data
+    secret = s_data["secret"]
+
+    # 6. Enable TOTP using valid generated code
+    totp = pyotp.TOTP(secret)
+    valid_code = totp.now()
+    enable_resp = client.post(f"/api/admin/users/{user_id}/totp-enable", json={"code": valid_code})
+    assert enable_resp.status_code == 200
+    assert enable_resp.json()["success"] is True
+
+    # 7. Now Step 1 login must challenge for MFA!
+    mfa_login_resp = client.post("/api/auth/login", json={
+        "username": test_uname,
+        "password": "SecurePassword123!"
+    })
+    assert mfa_login_resp.status_code == 200
+    mfa_step1 = mfa_login_resp.json()
+    assert mfa_step1["mfa_required"] is True
+    temp_token = mfa_step1["temp_token"]
+    assert temp_token is not None
+
+    # 8. Step 2 MFA verification with invalid code -> 401
+    invalid_verify = client.post("/api/auth/mfa-verify", json={
+        "temp_token": temp_token,
+        "code": "000000"
+    })
+    assert invalid_verify.status_code == 401
+
+    # 9. Step 2 MFA verification with valid TOTP code -> 200 and access_token
+    valid_verify = client.post("/api/auth/mfa-verify", json={
+        "temp_token": temp_token,
+        "code": totp.now()
+    })
+    assert valid_verify.status_code == 200
+    v_data = valid_verify.json()
+    assert v_data["success"] is True
+    assert "access_token" in v_data
+    assert v_data["user"]["username"] == test_uname
+
+    # 10. Update user (change full_name and deactivate MFA)
+    update_resp = client.put(f"/api/admin/users/{user_id}", json={
+        "full_name": "Test Opérateur Modifié",
+        "mfa_enabled": False
+    })
+    assert update_resp.status_code == 200
+    assert update_resp.json()["full_name"] == "Test Opérateur Modifié"
+    assert update_resp.json()["mfa_enabled"] is False
+
+    # 11. Delete test user
+    del_resp = client.delete(f"/api/admin/users/{user_id}")
+    assert del_resp.status_code == 200
+    assert del_resp.json()["success"] is True
+
 
 

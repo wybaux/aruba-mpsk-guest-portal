@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Union
 import requests
 
 from app.config import settings
+from app.db import db
 from app.models import GuestAccess, ProfileEnum, AVAILABLE_PROFILES
 from app.profile_manager import profile_manager, AccessProfileInfo
 from app.qr_generator import build_wifi_qr_string, generate_qr_code_base64
@@ -172,6 +173,12 @@ class MockArubaClient(BaseArubaClient):
 
         self._passes[guest_id] = pass_data
         self._save_db()
+        try:
+            db.save_pass(pass_data)
+            db.log_audit_event("PASS_CREATED", actor="portal", target=guest_id, ip_address=client_ip, details=f"Guest: {guest_name} | Profile: {profile_str}")
+        except Exception as e:
+            logger.warning(f"Failed to persist pass in SQLite: {e}")
+
         sponsor_info = f" | Sponsor: {sponsor_name} ({sponsor_email})" if sponsor_name else ""
         otp_info = f" | OTP: {'Verified' if otp_verified else 'No'}"
         logger.info(
@@ -187,6 +194,11 @@ class MockArubaClient(BaseArubaClient):
         if guest_id in self._passes:
             self._passes[guest_id]["is_active"] = False
             self._save_db()
+            try:
+                db.revoke_pass(guest_id)
+                db.log_audit_event("PASS_REVOKED", actor="admin", target=guest_id)
+            except Exception as e:
+                logger.warning(f"Failed to revoke pass in SQLite: {e}")
             logger.info(f"[MOCK] Revoked guest pass {guest_id}")
             return True
         return False

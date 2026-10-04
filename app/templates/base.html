@@ -114,7 +114,7 @@
                     <div id="adminLoggedInBadge" class="hidden flex items-center gap-2">
                         <span class="px-3 py-1 rounded-full bg-neutral-900 text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
                             <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
-                            <span>Admin</span>
+                            <span id="adminLoggedName">Admin</span>
                         </span>
                         <button type="button" onclick="adminLogout()" title="Déconnexion admin"
                                 class="p-1.5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 hover:text-neutral-800 transition">
@@ -144,7 +144,7 @@
         </div>
     </footer>
 
-    <!-- Admin Login Modal (Pure White Minimalist) -->
+    <!-- Admin Login Modal (Pure White Minimalist with 2FA / OTP Support) -->
     <div id="adminModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
         <div class="bg-white border border-neutral-200/80 rounded-3xl p-8 max-w-sm w-full shadow-2xl relative transform transition-all scale-95" id="adminModalCard">
             <!-- Close Button -->
@@ -156,25 +156,55 @@
             <div class="w-12 h-12 rounded-2xl bg-neutral-100 border border-neutral-200/60 flex items-center justify-center text-neutral-900 mb-4">
                 <i data-lucide="shield-alert" class="w-6 h-6"></i>
             </div>
-            <h3 class="text-lg font-bold text-neutral-900 tracking-tight">Espace Administrateur</h3>
-            <p class="text-xs text-neutral-500 mt-1 mb-6">Connectez-vous pour visualiser et révoquer les accès Wi-Fi invités en cours.</p>
+            <h3 class="text-lg font-bold text-neutral-900 tracking-tight" id="adminModalTitle">Espace Administrateur</h3>
+            <p class="text-xs text-neutral-500 mt-1 mb-5" id="adminModalSubtitle">Connectez-vous avec vos identifiants d'administration.</p>
 
             <form onsubmit="handleAdminLogin(event)" class="space-y-4">
-                <div>
-                    <label for="admin_password" class="block text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-2">
-                        Mot de passe administrateur
-                    </label>
-                    <div class="relative">
-                        <input type="password" id="admin_password" required placeholder="Entrez le mot de passe"
+                <!-- Step 1: Username & Password -->
+                <div id="loginStepCredentials" class="space-y-3">
+                    <div>
+                        <label for="admin_username" class="block text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-1.5">
+                            Identifiant
+                        </label>
+                        <input type="text" id="admin_username" value="admin" required placeholder="admin"
                                class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 text-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
-                        <button type="button" onclick="togglePasswordVisibility('admin_password')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-700">
-                            <i data-lucide="eye" class="w-4 h-4" id="admin_password_icon"></i>
-                        </button>
                     </div>
-                    <p id="adminLoginError" class="text-xs text-rose-500 font-medium mt-1.5 hidden flex items-center gap-1">
-                        <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Mot de passe incorrect
-                    </p>
+                    <div>
+                        <label for="admin_password" class="block text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-1.5">
+                            Mot de passe
+                        </label>
+                        <div class="relative">
+                            <input type="password" id="admin_password" required placeholder="Entrez le mot de passe"
+                                   class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 text-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                            <button type="button" onclick="togglePasswordVisibility('admin_password')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-700">
+                                <i data-lucide="eye" class="w-4 h-4" id="admin_password_icon"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Step 2: MFA / OTP Challenge -->
+                <div id="loginStepMfa" class="hidden space-y-3">
+                    <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs">
+                        <div class="font-bold flex items-center gap-1 mb-0.5">
+                            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-700"></i>
+                            <span>Double Authentification (2FA)</span>
+                        </div>
+                        <span id="mfaInstructions">Saisissez le code à 6 chiffres de votre application Authenticator ou reçu par e-mail.</span>
+                    </div>
+                    <div>
+                        <label for="admin_mfa_code" class="block text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-1.5">
+                            Code de sécurité OTP
+                        </label>
+                        <input type="text" id="admin_mfa_code" maxlength="6" placeholder="000000"
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 font-mono font-bold text-center text-base tracking-widest focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                    </div>
+                </div>
+
+                <p id="adminLoginError" class="text-xs text-rose-500 font-medium mt-1.5 hidden flex items-center gap-1">
+                    <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                    <span id="adminLoginErrorText">Identifiants incorrects</span>
+                </p>
 
                 <div class="flex gap-2 pt-2">
                     <button type="button" onclick="closeAdminModal()"
@@ -183,7 +213,7 @@
                     </button>
                     <button type="submit" id="btnAdminSubmit"
                             class="flex-1 py-2.5 px-4 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
-                        <span>Valider</span>
+                        <span id="btnAdminSubmitText">Valider</span>
                         <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
                     </button>
                 </div>
@@ -236,7 +266,20 @@
             const btnLogin = document.getElementById('btnAdminLogin');
             const badgeLoggedIn = document.getElementById('adminLoggedInBadge');
             const adminSection = document.getElementById('adminDashboardSection');
+            const profilesSection = document.getElementById('adminProfilesSection');
+            const usersSection = document.getElementById('adminUsersSection');
             const guestTabs = document.getElementById('portalTabs');
+            const nameLabel = document.getElementById('adminLoggedName');
+
+            const userJson = sessionStorage.getItem('wifi_guest_user');
+            if (userJson && nameLabel) {
+                try {
+                    const u = JSON.parse(userJson);
+                    nameLabel.textContent = u.username || 'Admin';
+                } catch (e) {
+                    nameLabel.textContent = 'Admin';
+                }
+            }
 
             if (isLoggedIn) {
                 if (btnLogin) btnLogin.classList.add('hidden');
@@ -247,11 +290,15 @@
                 if (badgeLoggedIn) badgeLoggedIn.classList.add('hidden');
                 if (guestTabs) guestTabs.classList.add('hidden');
                 if (adminSection) adminSection.classList.add('hidden');
+                if (profilesSection) profilesSection.classList.add('hidden');
+                if (usersSection) usersSection.classList.add('hidden');
                 const formSection = document.getElementById('guestFormSection');
                 if (formSection) formSection.classList.remove('hidden');
             }
             lucide.createIcons();
         }
+
+        let pendingMfaTempToken = null;
 
         function openAdminModal() {
             const modal = document.getElementById('adminModal');
@@ -260,7 +307,8 @@
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 card.classList.remove('scale-95');
-                document.getElementById('admin_password').focus();
+                const pwd = document.getElementById('admin_password');
+                if (pwd) pwd.focus();
             }, 10);
         }
 
@@ -271,6 +319,9 @@
             card.classList.add('scale-95');
             document.getElementById('adminLoginError').classList.add('hidden');
             document.getElementById('admin_password').value = '';
+            document.getElementById('loginStepCredentials').classList.remove('hidden');
+            document.getElementById('loginStepMfa').classList.add('hidden');
+            pendingMfaTempToken = null;
             setTimeout(() => {
                 modal.classList.add('hidden');
             }, 200);
@@ -278,47 +329,110 @@
 
         async function handleAdminLogin(e) {
             e.preventDefault();
-            const password = document.getElementById('admin_password').value;
             const errorElem = document.getElementById('adminLoginError');
+            const errorText = document.getElementById('adminLoginErrorText');
             const btnSubmit = document.getElementById('btnAdminSubmit');
+            const btnText = document.getElementById('btnAdminSubmitText');
 
-            btnSubmit.disabled = true;
-            btnSubmit.innerHTML = '<span>Connexion...</span>';
+            errorElem.classList.add('hidden');
 
-            try {
-                const res = await fetch('/api/admin/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: password })
-                });
-
-                if (res.ok) {
-                    sessionStorage.setItem('wifi_guest_admin', 'true');
-                    closeAdminModal();
-                    updateAdminUI();
-                    showToast('Connecté en mode Administrateur');
-                    // Switch to admin tab if present
-                    if (typeof switchTab === 'function') {
-                        switchTab('admin');
-                    }
-                } else {
+            if (pendingMfaTempToken) {
+                // Step 2: verify MFA code
+                const code = document.getElementById('admin_mfa_code').value.trim();
+                if (!code) {
+                    errorText.textContent = 'Veuillez saisir le code à 6 chiffres';
                     errorElem.classList.remove('hidden');
+                    return;
+                }
+
+                btnSubmit.disabled = true;
+                btnText.textContent = 'Vérification...';
+
+                try {
+                    const res = await fetch('/api/auth/mfa-verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ temp_token: pendingMfaTempToken, code: code })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        sessionStorage.setItem('wifi_guest_admin', 'true');
+                        if (data.access_token) sessionStorage.setItem('wifi_guest_token', data.access_token);
+                        if (data.user) sessionStorage.setItem('wifi_guest_user', JSON.stringify(data.user));
+                        closeAdminModal();
+                        updateAdminUI();
+                        showToast(`Bienvenue, ${data.user ? data.user.full_name : 'Admin'} !`);
+                        if (typeof switchTab === 'function') switchTab('admin');
+                    } else {
+                        errorText.textContent = data.detail || 'Code 2FA incorrect';
+                        errorElem.classList.remove('hidden');
+                    }
+                } catch (err) {
+                    errorText.textContent = 'Erreur réseau';
+                    errorElem.classList.remove('hidden');
+                } finally {
+                    btnSubmit.disabled = false;
+                    btnText.textContent = 'Valider';
                     lucide.createIcons();
                 }
+                return;
+            }
+
+            // Step 1: login with username & password
+            const username = document.getElementById('admin_username').value.trim();
+            const password = document.getElementById('admin_password').value;
+
+            btnSubmit.disabled = true;
+            btnText.textContent = 'Connexion...';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username, password: password })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    if (data.mfa_required) {
+                        // MFA required: switch to step 2
+                        pendingMfaTempToken = data.temp_token;
+                        document.getElementById('loginStepCredentials').classList.add('hidden');
+                        document.getElementById('loginStepMfa').classList.remove('hidden');
+                        document.getElementById('mfaInstructions').textContent = data.message || "Entrez votre code 2FA.";
+                        document.getElementById('admin_mfa_code').value = '';
+                        document.getElementById('admin_mfa_code').focus();
+                        lucide.createIcons();
+                    } else {
+                        // Direct login success
+                        sessionStorage.setItem('wifi_guest_admin', 'true');
+                        if (data.access_token) sessionStorage.setItem('wifi_guest_token', data.access_token);
+                        if (data.user) sessionStorage.setItem('wifi_guest_user', JSON.stringify(data.user));
+                        closeAdminModal();
+                        updateAdminUI();
+                        showToast(`Bienvenue, ${data.user ? data.user.full_name : 'Admin'} !`);
+                        if (typeof switchTab === 'function') switchTab('admin');
+                    }
+                } else {
+                    errorText.textContent = data.detail || 'Identifiants incorrects';
+                    errorElem.classList.remove('hidden');
+                }
             } catch (err) {
-                errorElem.textContent = 'Erreur réseau';
+                errorText.textContent = 'Erreur de communication serveur';
                 errorElem.classList.remove('hidden');
             } finally {
                 btnSubmit.disabled = false;
-                btnSubmit.innerHTML = '<span>Valider</span><i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>';
+                btnText.textContent = 'Valider';
                 lucide.createIcons();
             }
         }
 
         function adminLogout() {
             sessionStorage.removeItem('wifi_guest_admin');
+            sessionStorage.removeItem('wifi_guest_token');
+            sessionStorage.removeItem('wifi_guest_user');
             updateAdminUI();
-            showToast('Déconnecté du mode Administrateur');
+            showToast('Déconnecté avec succès');
             if (typeof switchTab === 'function') {
                 switchTab('guest');
             }

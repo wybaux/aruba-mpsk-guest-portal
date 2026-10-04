@@ -3,10 +3,10 @@
 {% block title %}Demande d'accès Wi-Fi - {{ app_title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto space-y-8">
+<div class="max-w-3xl mx-auto space-y-8">
 
     <!-- Admin Navigation Tabs (Only visible when Admin is logged in) -->
-    <div id="portalTabs" class="hidden flex items-center justify-center gap-1.5 p-1.5 bg-neutral-100/90 border border-neutral-200/80 rounded-2xl max-w-lg mx-auto no-print">
+    <div id="portalTabs" class="hidden flex items-center justify-center gap-1.5 p-1.5 bg-neutral-100/90 border border-neutral-200/80 rounded-2xl max-w-xl mx-auto no-print">
         <button type="button" onclick="switchTab('guest')" id="tabBtnGuest"
                 class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-white text-neutral-900 shadow-2xs">
             <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
@@ -21,6 +21,11 @@
                 class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5">
             <i data-lucide="gauge" class="w-3.5 h-3.5"></i>
             <span>Profils &amp; Débits</span>
+        </button>
+        <button type="button" onclick="switchTab('users')" id="tabBtnUsers"
+                class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+            <span>Sécurité &amp; 2FA</span>
         </button>
     </div>
 
@@ -524,6 +529,120 @@
         </div>
     </section>
 
+    <!-- ========================================================================= -->
+    <!-- 4. ADMIN USERS & SECURITY MANAGEMENT (RBAC / 2FA / METRICS)               -->
+    <!-- ========================================================================= -->
+    <section id="adminUsersSection" class="hidden space-y-6 transition-all duration-300">
+        <!-- Header Card -->
+        <div class="bg-white border border-neutral-200/80 rounded-3xl p-6 sm:p-8 shadow-[0_4px_30px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h2 class="text-base font-bold text-neutral-900 flex items-center gap-2">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-neutral-700"></i>
+                    <span>Utilisateurs &amp; Sécurité (RBAC / 2FA)</span>
+                </h2>
+                <p class="text-xs text-neutral-500 mt-1">
+                    Gestion des comptes d'administration, permissions de rôles et double authentification OTP / TOTP.
+                </p>
+            </div>
+            <button type="button" onclick="openCreateUserModal()"
+                    class="px-4 py-2.5 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-4 h-4"></i>
+                <span>Nouvel Utilisateur</span>
+            </button>
+        </div>
+
+        <!-- DevOps & Database Status Card -->
+        <div class="bg-white border border-neutral-200/80 rounded-2xl p-4 shadow-2xs">
+            <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="font-medium text-neutral-700">Base SQLite WAL :</span>
+                    <code class="font-mono text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded text-[11px] font-semibold">{{ db_metrics.db_file }}</code>
+                    <span class="text-neutral-400">({{ (db_metrics.db_size_bytes / 1024)|round(1) }} KB)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="/health" target="_blank" class="px-2.5 py-1 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-[11px] font-semibold flex items-center gap-1 transition">
+                        <i data-lucide="activity" class="w-3 h-3 text-emerald-600"></i>
+                        <span>/health</span>
+                    </a>
+                    <a href="/metrics" target="_blank" class="px-2.5 py-1 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-[11px] font-semibold flex items-center gap-1 transition">
+                        <i data-lucide="bar-chart-2" class="w-3 h-3 text-amber-600"></i>
+                        <span>/metrics</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users List -->
+        <div class="space-y-3" id="usersListContainer">
+            {% for u in users %}
+            <div class="bg-white border border-neutral-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div class="flex items-start sm:items-center gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-800 shrink-0 font-bold font-mono text-sm">
+                        {{ u.username[:2]|upper }}
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-sm text-neutral-900">{{ u.full_name }}</h4>
+                            <span class="text-xs text-neutral-400 font-mono">@{{ u.username }}</span>
+                            <!-- Role Badge -->
+                            {% if u.role == 'admin' %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-900 text-white">Admin</span>
+                            {% elif u.role == 'operator' %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">Opérateur</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">Auditeur</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-3 mt-1 text-xs text-neutral-500">
+                            {% if u.email %}
+                            <span class="flex items-center gap-1">
+                                <i data-lucide="mail" class="w-3 h-3 text-neutral-400"></i>
+                                <span>{{ u.email }}</span>
+                            </span>
+                            {% endif %}
+                            <!-- 2FA Badge -->
+                            {% if u.mfa_enabled %}
+                            <span class="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i>
+                                <span>2FA Activé ({{ u.mfa_type|upper }})</span>
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-neutral-400">
+                                <i data-lucide="shield-off" class="w-3.5 h-3.5 text-neutral-400"></i>
+                                <span>2FA Inactif</span>
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-2 self-end sm:self-center">
+                    <button type="button" onclick="openTotpSetup({{ u.id }}, '{{ u.username|escape }}')"
+                            class="py-1.5 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition flex items-center gap-1"
+                            title="Configurer Authenticator / 2FA">
+                        <i data-lucide="smartphone" class="w-3.5 h-3.5 text-neutral-600"></i>
+                        <span>2FA OTP</span>
+                    </button>
+                    <button type="button" onclick="openEditUserModal({{ u.model_dump_json() }})"
+                            class="py-1.5 px-2.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition flex items-center gap-1"
+                            title="Modifier l'utilisateur">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                    </button>
+                    {% if u.username != 'admin' %}
+                    <button type="button" onclick="deleteUser({{ u.id }}, '{{ u.username|escape }}')"
+                            class="py-1.5 px-2.5 rounded-xl border border-neutral-200 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 text-xs font-semibold transition flex items-center gap-1"
+                            title="Supprimer">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
 </div>
 
 <!-- Profile Edit/Create Modal (Minimalist White) -->
@@ -751,6 +870,150 @@
         </div>
     </div>
 </div>
+
+<!-- User Create/Edit Modal (Minimalist White) -->
+<div id="userModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-md w-full shadow-2xl relative transform transition-all scale-95" id="userModalCard">
+        <button type="button" onclick="closeUserModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-900 mb-3">
+            <i data-lucide="user-check" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-lg font-bold text-neutral-900 tracking-tight" id="userModalTitle">Ajouter un Utilisateur</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-5">Définit les identifiants d'accès et les privilèges RBAC.</p>
+
+        <form onsubmit="handleUserSubmit(event)" class="space-y-4">
+            <input type="hidden" id="usr_id" value="">
+            <div>
+                <label for="usr_username" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Nom d'utilisateur (Identifiant)
+                </label>
+                <input type="text" id="usr_username" required placeholder="ex: alexandre, tech_support"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div>
+                <label for="usr_full_name" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Nom complet
+                </label>
+                <input type="text" id="usr_full_name" required placeholder="ex: Alexandre Dupont"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div>
+                <label for="usr_email" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Adresse Email (pour alertes &amp; OTP Email)
+                </label>
+                <input type="email" id="usr_email" placeholder="a.dupont@entreprise.com"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="usr_role" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Rôle RBAC
+                    </label>
+                    <select id="usr_role"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                        <option value="admin">Admin (Total)</option>
+                        <option value="operator">Opérateur (Pass)</option>
+                        <option value="auditor">Auditeur (Lecture)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="usr_password" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                        Mot de passe <span id="pwdOptionalNotice" class="text-neutral-400 font-normal"></span>
+                    </label>
+                    <input type="password" id="usr_password" placeholder="Min. 8 caractères"
+                           class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 pt-2">
+                <input type="checkbox" id="usr_is_active" checked
+                       class="rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
+                <label for="usr_is_active" class="text-xs text-neutral-700 cursor-pointer select-none">
+                    Compte utilisateur actif
+                </label>
+            </div>
+
+            <p id="userErrorMsg" class="hidden text-xs text-rose-600 mt-1 flex items-center gap-1">
+                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                <span id="userErrorText">Erreur</span>
+            </p>
+
+            <div class="flex gap-2 pt-3">
+                <button type="button" onclick="closeUserModal()"
+                        class="flex-1 py-2.5 px-4 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit" id="btnSubmitUser"
+                        class="flex-1 py-2.5 px-4 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Enregistrer</span>
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- TOTP 2FA Setup Modal (Minimalist White) -->
+<div id="totpModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-sm w-full shadow-2xl relative transform transition-all scale-95 text-center" id="totpModalCard">
+        <button type="button" onclick="closeTotpModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200/70 flex items-center justify-center text-emerald-600 mx-auto mb-3">
+            <i data-lucide="smartphone" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-base font-bold text-neutral-900 tracking-tight">Activer la 2FA (TOTP)</h3>
+        <p class="text-xs text-neutral-500 mt-1 mb-4" id="totpUsernameNotice">
+            Scannez ce QR Code avec Google Authenticator ou Microsoft Authenticator.
+        </p>
+
+        <!-- QR Code Image -->
+        <div class="p-3 bg-neutral-50 rounded-2xl border border-neutral-200/80 inline-block mb-3">
+            <img id="totpQrImg" src="" alt="QR Code 2FA" class="w-44 h-44 mx-auto rounded-xl">
+        </div>
+
+        <div class="text-[11px] text-neutral-500 mb-4">
+            <span>Clé secrète manuelle :</span>
+            <code id="totpSecretText" class="font-mono text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded text-[11px] block mt-1 select-all font-semibold"></code>
+        </div>
+
+        <!-- Verification form -->
+        <form onsubmit="handleTotpEnableSubmit(event)" class="space-y-3">
+            <input type="hidden" id="totpUserId" value="">
+            <div>
+                <label for="totpVerifyCode" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1">
+                    Code à 6 chiffres de l'application
+                </label>
+                <input type="text" id="totpVerifyCode" maxlength="6" required autofocus placeholder="000000"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white font-mono text-center font-bold text-sm tracking-widest text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+            </div>
+
+            <p id="totpErrorMsg" class="hidden text-xs text-rose-600 flex items-center justify-center gap-1">
+                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                <span id="totpErrorText">Code incorrect</span>
+            </p>
+
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeTotpModal()"
+                        class="flex-1 py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit" id="btnSubmitTotp"
+                        class="flex-1 py-2 px-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Activer 2FA</span>
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -778,15 +1041,18 @@
         const guestSection = document.getElementById('guestFormSection');
         const adminSection = document.getElementById('adminDashboardSection');
         const profilesSection = document.getElementById('adminProfilesSection');
+        const usersSection = document.getElementById('adminUsersSection');
         
         const tabBtnGuest = document.getElementById('tabBtnGuest');
         const tabBtnAdmin = document.getElementById('tabBtnAdmin');
         const tabBtnProfiles = document.getElementById('tabBtnProfiles');
+        const tabBtnUsers = document.getElementById('tabBtnUsers');
 
         // Hide all sections first
         guestSection.classList.add('hidden');
         adminSection.classList.add('hidden');
         profilesSection.classList.add('hidden');
+        if (usersSection) usersSection.classList.add('hidden');
 
         // Reset button styles
         const inactiveClass = 'flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5';
@@ -795,6 +1061,7 @@
         tabBtnGuest.className = inactiveClass;
         tabBtnAdmin.className = inactiveClass;
         tabBtnProfiles.className = inactiveClass;
+        if (tabBtnUsers) tabBtnUsers.className = inactiveClass;
 
         if (tab === 'admin') {
             adminSection.classList.remove('hidden');
@@ -802,6 +1069,9 @@
         } else if (tab === 'profiles') {
             profilesSection.classList.remove('hidden');
             tabBtnProfiles.className = activeClass;
+        } else if (tab === 'users') {
+            if (usersSection) usersSection.classList.remove('hidden');
+            if (tabBtnUsers) tabBtnUsers.className = activeClass;
         } else {
             guestSection.classList.remove('hidden');
             tabBtnGuest.className = activeClass;
@@ -809,9 +1079,11 @@
         lucide.createIcons();
     }
 
-    // Auto-switch to profiles tab if URL hash is #profiles
+    // Auto-switch to tabs if URL hash is present
     if (window.location.hash === '#profiles') {
         setTimeout(() => switchTab('profiles'), 50);
+    } else if (window.location.hash === '#users') {
+        setTimeout(() => switchTab('users'), 50);
     }
 
     // Quick Duration Selection
@@ -1106,6 +1378,257 @@
         toggleProfileDefaultState();
         toggleProfilePasswordRequirement();
         openProfileModal(true);
+    }
+
+    // User Management & Security (RBAC / 2FA) Logic
+    function getAuthHeaders() {
+        const token = sessionStorage.getItem('wifi_guest_token');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = 'Bearer ' + token;
+        }
+        return headers;
+    }
+
+    function openCreateUserModal() {
+        document.getElementById('userModalTitle').textContent = 'Ajouter un Utilisateur';
+        document.getElementById('usr_id').value = '';
+        document.getElementById('usr_username').value = '';
+        document.getElementById('usr_username').readOnly = false;
+        document.getElementById('usr_full_name').value = '';
+        document.getElementById('usr_email').value = '';
+        document.getElementById('usr_role').value = 'operator';
+        document.getElementById('usr_password').value = '';
+        document.getElementById('usr_password').required = true;
+        document.getElementById('pwdOptionalNotice').textContent = '';
+        document.getElementById('usr_is_active').checked = true;
+        document.getElementById('userErrorMsg').classList.add('hidden');
+
+        const modal = document.getElementById('userModal');
+        const card = document.getElementById('userModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('usr_username').focus();
+        }, 10);
+    }
+
+    function openEditUserModal(user) {
+        document.getElementById('userModalTitle').textContent = 'Modifier : @' + user.username;
+        document.getElementById('usr_id').value = user.id;
+        document.getElementById('usr_username').value = user.username;
+        document.getElementById('usr_username').readOnly = true;
+        document.getElementById('usr_full_name').value = user.full_name;
+        document.getElementById('usr_email').value = user.email || '';
+        document.getElementById('usr_role').value = user.role;
+        document.getElementById('usr_password').value = '';
+        document.getElementById('usr_password').required = false;
+        document.getElementById('pwdOptionalNotice').textContent = '(Optionnel)';
+        document.getElementById('usr_is_active').checked = user.is_active;
+        document.getElementById('userErrorMsg').classList.add('hidden');
+
+        const modal = document.getElementById('userModal');
+        const card = document.getElementById('userModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('usr_full_name').focus();
+        }, 10);
+    }
+
+    function closeUserModal() {
+        const modal = document.getElementById('userModal');
+        const card = document.getElementById('userModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    async function handleUserSubmit(e) {
+        e.preventDefault();
+        const userId = document.getElementById('usr_id').value;
+        const username = document.getElementById('usr_username').value.trim();
+        const fullName = document.getElementById('usr_full_name').value.trim();
+        const email = document.getElementById('usr_email').value.trim();
+        const role = document.getElementById('usr_role').value;
+        const password = document.getElementById('usr_password').value;
+        const isActive = document.getElementById('usr_is_active').checked;
+
+        const errorMsg = document.getElementById('userErrorMsg');
+        const errorText = document.getElementById('userErrorText');
+        const btnSubmit = document.getElementById('btnSubmitUser');
+
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<span>Enregistrement...</span>';
+        errorMsg.classList.add('hidden');
+
+        try {
+            let res;
+            if (!userId) {
+                // Create user
+                res = await fetch('/api/admin/users', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        username: username,
+                        full_name: fullName,
+                        email: email || null,
+                        role: role,
+                        password: password,
+                        is_active: isActive
+                    })
+                });
+            } else {
+                // Update user
+                const payload = {
+                    full_name: fullName,
+                    email: email || null,
+                    role: role,
+                    is_active: isActive
+                };
+                if (password && password.trim()) {
+                    payload.password = password;
+                }
+                res = await fetch(`/api/admin/users/${userId}`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(payload)
+                });
+            }
+
+            const data = await res.json();
+            if (res.ok) {
+                closeUserModal();
+                showToast(userId ? 'Utilisateur mis à jour !' : 'Utilisateur créé avec succès !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                errorText.textContent = data.detail || 'Erreur lors de l’enregistrement';
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur réseau ou communication serveur';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<span>Enregistrer</span><i data-lucide="check" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    async function deleteUser(userId, username) {
+        if (!confirm(`Confirmez-vous la suppression du compte "${username}" ?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/admin/users/${userId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(`Utilisateur ${username} supprimé.`);
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                showToast(data.detail || 'Erreur lors de la suppression', 'error');
+            }
+        } catch (e) {
+            showToast('Erreur serveur lors de la suppression', 'error');
+        }
+    }
+
+    // TOTP Setup & Activation Logic
+    async function openTotpSetup(userId, username) {
+        const modal = document.getElementById('totpModal');
+        const card = document.getElementById('totpModalCard');
+        const errorMsg = document.getElementById('totpErrorMsg');
+        errorMsg.classList.add('hidden');
+
+        document.getElementById('totpUsernameNotice').textContent = `Configuration pour l'utilisateur @${username}. Scannez le QR Code ci-dessous.`;
+        document.getElementById('totpUserId').value = userId;
+        document.getElementById('totpVerifyCode').value = '';
+
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/totp-setup`, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                document.getElementById('totpQrImg').src = 'data:image/png;base64,' + data.qr_code_base64;
+                document.getElementById('totpSecretText').textContent = data.manual_code;
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    card.classList.remove('scale-95');
+                    document.getElementById('totpVerifyCode').focus();
+                }, 10);
+            } else {
+                showToast(data.detail || 'Impossible de générer le QR Code 2FA', 'error');
+            }
+        } catch (e) {
+            showToast('Erreur serveur lors de la configuration 2FA', 'error');
+        }
+    }
+
+    function closeTotpModal() {
+        const modal = document.getElementById('totpModal');
+        const card = document.getElementById('totpModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    async function handleTotpEnableSubmit(e) {
+        e.preventDefault();
+        const userId = document.getElementById('totpUserId').value;
+        const code = document.getElementById('totpVerifyCode').value.trim();
+        const errorMsg = document.getElementById('totpErrorMsg');
+        const errorText = document.getElementById('totpErrorText');
+        const btnSubmit = document.getElementById('btnSubmitTotp');
+
+        if (!code || code.length !== 6) {
+            errorText.textContent = 'Le code doit contenir 6 chiffres';
+            errorMsg.classList.remove('hidden');
+            return;
+        }
+
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<span>Vérification...</span>';
+        errorMsg.classList.add('hidden');
+
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/totp-enable`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ code: code })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                closeTotpModal();
+                showToast('2FA Authenticator activée avec succès !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                errorText.textContent = data.detail || 'Code de confirmation 2FA invalide';
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur lors de la validation';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<span>Activer 2FA</span><i data-lucide="check" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
     }
 </script>
 {% endblock %}
