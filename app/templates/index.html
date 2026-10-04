@@ -70,29 +70,24 @@
                         <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider">
                             Durée d'accès
                         </label>
-                        <span id="durationDisplay" class="text-xs font-semibold text-neutral-500 font-mono">2 heures</span>
+                        {% set default_dur = duration_presets[1] if duration_presets|length > 1 else duration_presets[0] %}
+                        <span id="durationDisplay" class="text-xs font-semibold text-neutral-500 font-mono">
+                            {% if default_dur == 1 %}1 heure{% elif default_dur == 24 %}24 heures (1 jour){% elif default_dur % 24 == 0 and default_dur >= 48 %}{{ default_dur }} heures ({{ (default_dur // 24) }} jours){% else %}{{ default_dur }} heures{% endif %}
+                        </span>
                     </div>
 
                     <!-- Quick Pills -->
                     <div class="grid grid-cols-5 gap-2 mb-3">
-                        <button type="button" onclick="selectDuration(1, this)" class="dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center">
-                            1h
+                        {% for d in duration_presets %}
+                        {% set is_active = (loop.index == 2) or (duration_presets|length == 1 and loop.first) %}
+                        <button type="button" onclick="selectDuration({{ d }}, this)"
+                                class="dur-pill {% if is_active %}active py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-900 bg-neutral-900 text-white transition text-center shadow-xs{% else %}py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center{% endif %}">
+                            {{ d }}h
                         </button>
-                        <button type="button" onclick="selectDuration(2, this)" class="dur-pill active py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-900 bg-neutral-900 text-white transition text-center shadow-xs">
-                            2h
-                        </button>
-                        <button type="button" onclick="selectDuration(4, this)" class="dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center">
-                            4h
-                        </button>
-                        <button type="button" onclick="selectDuration(8, this)" class="dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center">
-                            8h
-                        </button>
-                        <button type="button" onclick="selectDuration(24, this)" class="dur-pill py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition text-center">
-                            24h
-                        </button>
+                        {% endfor %}
                     </div>
 
-                    <input type="hidden" id="duration_hours" name="duration_hours" value="2">
+                    <input type="hidden" id="duration_hours" name="duration_hours" value="{{ default_dur }}">
                 </div>
 
                 <!-- Access Profile (Dynamically defined by Admin) -->
@@ -671,6 +666,38 @@
                             class="py-2 px-3.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
                         <i data-lucide="settings" class="w-3.5 h-3.5"></i>
                         <span>Configurer</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. Guest Access Duration Presets Card -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
+                        <i data-lucide="clock" class="w-5 h-5 text-neutral-800"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-xs text-neutral-900">Paliers de Durée d'Accès Invités (5 Choix)</h4>
+                            <div class="flex items-center gap-1.5" id="adminDurationsBadges">
+                                {% for d in duration_presets %}
+                                <span class="px-2 py-0.5 rounded-lg font-mono text-[10px] font-bold {% if loop.index == 2 %}bg-neutral-900 text-white{% else %}bg-neutral-200/70 text-neutral-700{% endif %}">
+                                    {{ d }}h
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
+                            Les 5 durées de validité proposées en 1 clic aux invités sur le formulaire d'accueil.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button type="button" onclick="openDurationsModal()"
+                            class="py-2 px-3.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                        <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+                        <span>Personnaliser</span>
                     </button>
                 </div>
             </div>
@@ -1260,6 +1287,103 @@
             </div>
         </form>
     </div>
+<!-- Durations Customization Modal (Minimalist White) -->
+<div id="durationsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-md w-full shadow-2xl relative transform transition-all scale-95" id="durationsModalCard">
+        <button type="button" onclick="closeDurationsModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-900 mb-3">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-base font-bold text-neutral-900 tracking-tight">Personnaliser les 5 Durées d'Accès</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-4">Définissez les 5 options de durée (en heures) proposées aux invités sur le portail d'accueil.</p>
+
+        <!-- Quick Presets -->
+        <div class="mb-4">
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+                Préréglages rapides
+            </label>
+            <div class="flex flex-wrap gap-1.5">
+                <button type="button" onclick="applyDurationPreset([1, 2, 4, 8, 24])"
+                        class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition">
+                    Standard (1h, 2h, 4h, 8h, 24h)
+                </button>
+                <button type="button" onclick="applyDurationPreset([1, 2, 3, 6, 12])"
+                        class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition">
+                    Courts (1h, 2h, 3h, 6h, 12h)
+                </button>
+                <button type="button" onclick="applyDurationPreset([2, 4, 8, 24, 48])"
+                        class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition">
+                    Séjour (2h, 4h, 8h, 24h, 48h)
+                </button>
+                <button type="button" onclick="applyDurationPreset([4, 8, 24, 72, 168])"
+                        class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition">
+                    Semaine (4h, 8h, 24h, 3j, 7j)
+                </button>
+            </div>
+        </div>
+
+        <form onsubmit="handleDurationsSubmit(event)" class="space-y-4">
+            <div class="grid grid-cols-5 gap-2">
+                <div>
+                    <label for="dur_1" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1 text-center">
+                        Choix 1
+                    </label>
+                    <input type="number" id="dur_1" min="1" max="720" required
+                           class="w-full py-2.5 px-1 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 font-mono font-bold text-center text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="dur_2" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1 text-center">
+                        Choix 2
+                    </label>
+                    <input type="number" id="dur_2" min="1" max="720" required
+                           class="w-full py-2.5 px-1 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 font-mono font-bold text-center text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="dur_3" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1 text-center">
+                        Choix 3
+                    </label>
+                    <input type="number" id="dur_3" min="1" max="720" required
+                           class="w-full py-2.5 px-1 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 font-mono font-bold text-center text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="dur_4" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1 text-center">
+                        Choix 4
+                    </label>
+                    <input type="number" id="dur_4" min="1" max="720" required
+                           class="w-full py-2.5 px-1 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 font-mono font-bold text-center text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+                <div>
+                    <label for="dur_5" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1 text-center">
+                        Choix 5
+                    </label>
+                    <input type="number" id="dur_5" min="1" max="720" required
+                           class="w-full py-2.5 px-1 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 font-mono font-bold text-center text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                </div>
+            </div>
+
+            <p class="text-[11px] text-neutral-400 text-center leading-tight">Valeurs en heures (ex: 24 = 1j, 168 = 7j). Les 5 durées seront automatiquement triées par ordre croissant.</p>
+
+            <p id="durationsErrorMsg" class="hidden text-xs text-rose-600 flex items-center justify-center gap-1">
+                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                <span id="durationsErrorText">Erreur</span>
+            </p>
+
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeDurationsModal()"
+                        class="flex-1 py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                    Annuler
+                </button>
+                <button type="submit" id="btnSubmitDurations"
+                        class="flex-1 py-2 px-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                    <span>Enregistrer</span>
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
 
@@ -1334,6 +1458,14 @@
     }
 
     // Quick Duration Selection
+    function formatDurationLabel(hours) {
+        hours = Number(hours);
+        if (hours === 1) return '1 heure';
+        if (hours === 24) return '24 heures (1 jour)';
+        if (hours >= 48 && hours % 24 === 0) return `${hours} heures (${hours / 24} jours)`;
+        return `${hours} heures`;
+    }
+
     function selectDuration(hours, btn) {
         document.getElementById('duration_hours').value = hours;
         document.querySelectorAll('.dur-pill').forEach(b => {
@@ -1342,9 +1474,7 @@
         btn.className = 'dur-pill active py-2.5 px-2 rounded-xl text-xs font-semibold border border-neutral-900 bg-neutral-900 text-white transition text-center shadow-xs';
         
         const display = document.getElementById('durationDisplay');
-        if (hours === 1) display.textContent = '1 heure';
-        else if (hours === 24) display.textContent = '24 heures (1 jour)';
-        else display.textContent = hours + ' heures';
+        if (display) display.textContent = formatDurationLabel(hours);
     }
 
     // Profile Authorization & Unlock Logic
@@ -2069,6 +2199,97 @@
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<span>Envoyer</span><i data-lucide="send" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    // ==========================================
+    // Duration Presets Customization Handlers
+    // ==========================================
+    function openDurationsModal() {
+        const errorMsg = document.getElementById('durationsErrorMsg');
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        fetch('/api/admin/settings', { headers: getAuthHeaders() })
+            .then(res => res.json())
+            .then(data => {
+                const presets = data.duration_presets || [1, 2, 4, 8, 24];
+                applyDurationPreset(presets);
+            })
+            .catch(() => {
+                applyDurationPreset([1, 2, 4, 8, 24]);
+            });
+
+        const modal = document.getElementById('durationsModal');
+        const card = document.getElementById('durationsModalCard');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('dur_1').focus();
+        }, 10);
+    }
+
+    function applyDurationPreset(arr) {
+        if (!Array.isArray(arr) || arr.length !== 5) return;
+        for (let i = 0; i < 5; i++) {
+            const input = document.getElementById(`dur_${i + 1}`);
+            if (input) input.value = arr[i];
+        }
+    }
+
+    function closeDurationsModal() {
+        const modal = document.getElementById('durationsModal');
+        const card = document.getElementById('durationsModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    async function handleDurationsSubmit(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitDurations');
+        const errorMsg = document.getElementById('durationsErrorMsg');
+        const errorText = document.getElementById('durationsErrorText');
+
+        const vals = [];
+        for (let i = 1; i <= 5; i++) {
+            const val = parseInt(document.getElementById(`dur_${i}`).value, 10);
+            if (isNaN(val) || val <= 0 || val > 720) {
+                errorText.textContent = `Le choix ${i} doit être un nombre d'heures entier entre 1 et 720.`;
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+            vals.push(val);
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span>Enregistrement...</span>';
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/admin/settings/durations', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ duration_presets: vals })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeDurationsModal();
+                showToast(data.message || 'Paliers de durée mis à jour !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                errorText.textContent = data.detail || 'Erreur lors de l\'enregistrement';
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur réseau ou communication serveur';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Enregistrer</span><i data-lucide="check" class="w-3.5 h-3.5"></i>';
             lucide.createIcons();
         }
     }

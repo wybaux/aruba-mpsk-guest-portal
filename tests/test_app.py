@@ -12,9 +12,22 @@ settings.ARUBA_MODE = "mock"
 from app.main import app
 from app.aruba_client import MockArubaClient
 from app.models import ProfileEnum
+from app.db import db
 from app.qr_generator import build_wifi_qr_string, generate_qr_code_bytes, generate_qr_code_base64
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def reset_settings_fixture():
+    db.set_setting("require_otp_verification", False)
+    db.set_setting("allowed_sponsor_domains", "")
+    db.set_setting("smtp_host", "")
+    db.set_setting("duration_presets", [1, 2, 4, 8, 24])
+    yield
+    db.set_setting("require_otp_verification", False)
+    db.set_setting("allowed_sponsor_domains", "")
+    db.set_setting("smtp_host", "")
+    db.set_setting("duration_presets", [1, 2, 4, 8, 24])
 
 def test_qr_generator():
     wifi_str = build_wifi_qr_string("TestSSID", "SecretPass123", "WPA")
@@ -464,6 +477,40 @@ def test_admin_settings_api():
         mock_server.login.assert_called_once_with("wifi-notifier@test-company.local", "supersecretpassword")
         mock_server.send_message.assert_called_once()
         mock_server.quit.assert_called_once()
+
+    # 7. Test duration presets configuration
+    # Check default 5 presets
+    settings_data = client.get("/api/admin/settings").json()
+    assert "duration_presets" in settings_data
+    assert len(settings_data["duration_presets"]) == 5
+
+    # Invalid payload: only 3 items
+    err_resp1 = client.post("/api/admin/settings/durations", json={"duration_presets": [1, 2, 4]})
+    assert err_resp1.status_code == 400
+
+    # Invalid payload: negative or out-of-range hours
+    err_resp2 = client.post("/api/admin/settings/durations", json={"duration_presets": [0, 2, 4, 8, 24]})
+    assert err_resp2.status_code == 400
+
+    # Valid custom 5 presets: [1, 3, 6, 12, 48]
+    custom_resp = client.post("/api/admin/settings/durations", json={"duration_presets": [48, 1, 12, 3, 6]})
+    assert custom_resp.status_code == 200
+    saved_presets = custom_resp.json()["duration_presets"]
+    assert saved_presets == [1, 3, 6, 12, 48]  # Sorted
+
+    # Verify home page renders custom duration pills
+    home_resp = client.get("/")
+    assert home_resp.status_code == 200
+    assert "3h" in home_resp.text
+    assert "6h" in home_resp.text
+    assert "12h" in home_resp.text
+    assert "48h" in home_resp.text
+
+    # Reset back to standard [1, 2, 4, 8, 24]
+    reset_resp = client.post("/api/admin/settings/durations", json={"duration_presets": [1, 2, 4, 8, 24]})
+    assert reset_resp.status_code == 200
+    assert reset_resp.json()["duration_presets"] == [1, 2, 4, 8, 24]
+
 
 
 

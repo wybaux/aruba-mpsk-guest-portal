@@ -93,6 +93,7 @@ async def home_dashboard(request: Request):
     require_otp = bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION))
     allowed_sponsor_domains = db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS)
     smtp_cfg = notification_service.get_smtp_config()
+    duration_presets = db.get_duration_presets()
     
     return templates.TemplateResponse(
         request=request,
@@ -107,6 +108,7 @@ async def home_dashboard(request: Request):
             "require_otp": require_otp,
             "allowed_sponsor_domains": allowed_sponsor_domains,
             "smtp_cfg": smtp_cfg,
+            "duration_presets": duration_presets,
             "users": users,
             "db_metrics": db_metrics
         }
@@ -850,12 +852,16 @@ class UpdateSettingsPayload(BaseModel):
     smtp_password: Optional[str] = None
     smtp_from: Optional[str] = None
     smtp_tls: Optional[bool] = None
+    duration_presets: Optional[List[int]] = None
 
 class ToggleOtpPayload(BaseModel):
     enabled: bool
 
 class TestEmailPayload(BaseModel):
     recipient_email: str
+
+class UpdateDurationsPayload(BaseModel):
+    duration_presets: List[int]
 
 @app.get("/api/admin/settings")
 async def api_admin_get_settings():
@@ -869,7 +875,8 @@ async def api_admin_get_settings():
         "smtp_user": cfg["user"] or "",
         "smtp_from": cfg["from_email"] or "",
         "smtp_tls": cfg["tls"],
-        "has_smtp_password": bool(cfg["password"])
+        "has_smtp_password": bool(cfg["password"]),
+        "duration_presets": db.get_duration_presets()
     }
 
 @app.post("/api/admin/settings")
@@ -894,6 +901,11 @@ async def api_admin_update_settings(payload: UpdateSettingsPayload, request: Req
         db.set_setting("smtp_from", payload.smtp_from.strip())
     if payload.smtp_tls is not None:
         db.set_setting("smtp_tls", payload.smtp_tls)
+    if payload.duration_presets is not None:
+        try:
+            db.set_duration_presets(payload.duration_presets)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     db.log_audit_event("SETTINGS_UPDATED", actor=actor, details="Updated system/SMTP settings")
     return {"success": True, "message": "Paramètres mis à jour avec succès !"}
@@ -912,6 +924,23 @@ async def api_admin_toggle_otp(payload: ToggleOtpPayload, request: Request):
         "message": f"La vérification OTP pour les invités est désormais {status_txt}."
     }
 
+@app.post("/api/admin/settings/durations")
+async def api_admin_update_durations(payload: UpdateDurationsPayload, request: Request):
+    """Update the 5 guest access duration presets."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    try:
+        saved = db.set_duration_presets(payload.duration_presets)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    db.log_audit_event("DURATIONS_UPDATED", actor=actor, details=f"Paliers de durée mis à jour : {saved}")
+    return {
+        "success": True,
+        "duration_presets": saved,
+        "message": f"Les 5 paliers de durée ont été enregistrés : {', '.join(f'{d}h' for d in saved)}"
+    }
+
 @app.post("/api/admin/settings/test-email")
 async def api_admin_test_email(payload: TestEmailPayload, request: Request):
     """Test SMTP connection and send a test message."""
@@ -921,5 +950,6 @@ async def api_admin_test_email(payload: TestEmailPayload, request: Request):
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"success": True, "message": message}
+
 
 

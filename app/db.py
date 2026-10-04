@@ -340,5 +340,51 @@ class Database:
                     res[k] = v
             return res
 
+    def get_duration_presets(self) -> List[int]:
+        """Retrieve the 5 configured duration presets in hours (defaults to [1, 2, 4, 8, 24])."""
+        raw = self.get_setting("duration_presets", [1, 2, 4, 8, 24])
+        durations = []
+        if isinstance(raw, list):
+            for x in raw:
+                try:
+                    val = int(x)
+                    if 0 < val <= 720:
+                        durations.append(val)
+                except (ValueError, TypeError):
+                    pass
+        elif isinstance(raw, str):
+            try:
+                if raw.strip().startswith("["):
+                    parsed = json.loads(raw)
+                    durations = [int(x) for x in parsed if 0 < int(x) <= 720]
+                else:
+                    durations = [int(x.strip()) for x in raw.split(",") if x.strip().isdigit() and 0 < int(x.strip()) <= 720]
+            except Exception:
+                durations = []
+
+        if len(durations) != 5:
+            return [1, 2, 4, 8, 24]
+        return sorted(durations)
+
+    def set_duration_presets(self, presets: List[int]) -> List[int]:
+        """Validate, sort and persist the 5 duration presets."""
+        if not presets or len(presets) != 5:
+            raise ValueError("Exactement 5 durées doivent être spécifiées.")
+        
+        cleaned = []
+        for p in presets:
+            try:
+                val = int(p)
+                if val <= 0 or val > 720:
+                    raise ValueError(f"Durée invalide : {val}h. Doit être comprise entre 1 et 720 heures.")
+                cleaned.append(val)
+            except (ValueError, TypeError):
+                raise ValueError("Chaque palier de durée doit être un nombre d'heures entier valide.")
+
+        cleaned = sorted(cleaned)
+        self.set_setting("duration_presets", cleaned)
+        return cleaned
+
 # Global DB instance
 db = Database()
+
