@@ -373,6 +373,62 @@ class MockArubaClient(BaseArubaClient):
 
 
 
+def _ssh_connect_iap(ip: str, username: str, password: str, port: int = 22, timeout: int = 10):
+    """
+    Connect to Aruba Instant AP with automatic fallback:
+    1. Standard password auth with legacy RSA host key algorithms enabled.
+    2. Keyboard-interactive auth fallback (required by some InstantOS firmware).
+    """
+    import paramiko
+    import socket
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    connect_kwargs = {
+        "timeout": timeout,
+        "banner_timeout": 15,
+        "auth_timeout": 15,
+        "look_for_keys": False,
+        "allow_agent": False
+    }
+
+    # Attempt 1: Standard password auth
+    try:
+        try:
+            client.connect(
+                ip, port=port, username=username, password=password,
+                disabled_algorithms=dict(pubkeys=[]),
+                **connect_kwargs
+            )
+        except TypeError:
+            client.connect(
+                ip, port=port, username=username, password=password,
+                **connect_kwargs
+            )
+        return client
+    except (paramiko.BadAuthenticationType, paramiko.AuthenticationException):
+        pass
+
+    # Attempt 2: Keyboard-Interactive auth fallback
+    try:
+        sock = socket.create_connection((ip, port), timeout=timeout)
+        transport = paramiko.Transport(sock)
+        transport.start_client(timeout=15)
+        def _interactive_handler(title, instructions, prompt_list):
+            return [password for _ in prompt_list]
+        transport.auth_interactive(username, _interactive_handler)
+        if transport.is_authenticated():
+            client._transport = transport
+            return client
+        transport.close()
+    except Exception as e_inter:
+        logger.debug(f"Keyboard-interactive auth fallback error: {e_inter}")
+
+    raise paramiko.AuthenticationException(
+        f"Échec d'authentification pour l'utilisateur '{username}' sur {ip}:{port}"
+    )
+
+
 class ArubaInstantClient(MockArubaClient):
     """
     Aruba Instant AP (IAP) integration.
@@ -413,7 +469,6 @@ class ArubaInstantClient(MockArubaClient):
     ) -> bool:
         """Sync guest unique MPSK passphrase and assigned role directly to Aruba Instant Virtual Controller over SSH."""
         try:
-            import paramiko
             import urllib.parse
             import time
 
@@ -421,26 +476,7 @@ class ArubaInstantClient(MockArubaClient):
             parsed = urllib.parse.urlparse(self.host)
             ip = parsed.hostname or self.host.replace("https://", "").replace("http://", "").split(":")[0]
 
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            connect_kwargs = {
-                "timeout": 10,
-                "banner_timeout": 15,
-                "auth_timeout": 15,
-                "look_for_keys": False,
-                "allow_agent": False
-            }
-            try:
-                client.connect(
-                    ip, port=22, username=self.username, password=self.password,
-                    disabled_algorithms=dict(pubkeys=[]),
-                    **connect_kwargs
-                )
-            except TypeError:
-                client.connect(
-                    ip, port=22, username=self.username, password=self.password,
-                    **connect_kwargs
-                )
+            client = _ssh_connect_iap(ip, self.username, self.password, port=22, timeout=10)
             channel = client.invoke_shell()
             channel.send("\n")
 
@@ -686,18 +722,7 @@ def test_vc_connection(
         }
 
         # Allow legacy host keys (ssh-rsa) for older Aruba Instant APs
-        try:
-            client.connect(
-                ip, port=22, username=target_user, password=target_pwd,
-                disabled_algorithms=dict(pubkeys=[]),
-                **connect_kwargs
-            )
-        except TypeError:
-            client.connect(
-                ip, port=22, username=target_user, password=target_pwd,
-                **connect_kwargs
-            )
-
+        client = _ssh_connect_iap(ip, target_user, target_pwd, port=22, timeout=10)
         channel = client.invoke_shell()
         channel.send("\n")
         prompt_buf = ""
@@ -712,7 +737,11 @@ def test_vc_connection(
         elapsed = round(time.time() - start_t, 2)
         return True, f"Connexion SSH réussie au Virtual Controller Aruba Instant ({ip}:22) en {elapsed}s avec l'utilisateur '{target_user}' ! Invite de commande détectée."
     except paramiko.AuthenticationException:
-        return False, f"Échec d'authentification sur le Virtual Controller ({ip}:22) : l'identifiant '{target_user}' ou le mot de passe est refusé par la borne Aruba."
+        return False, (
+            f"Échec d'authentification sur le Virtual Controller ({ip}:22) : l'identifiant '{target_user}' ou le mot de passe est refusé par la borne Aruba. "
+            f"Conseils : 1) Sur InstantOS 8.6+, le mot de passe usine est le NUMÉRO DE SÉRIE de la borne en MAJUSCULES (ex: CN12345678). "
+            f"2) Si vous l'avez modifié dans l'interface Web Aruba, renseignez le mot de passe admin exact."
+        )
     except Exception as e:
         return False, f"Échec de négociation SSH avec le Virtual Controller ({ip}:22) : {str(e)}"
 
