@@ -76,8 +76,14 @@
             top: 50%;
             transform: translateY(-50%);
         }
-        .ticket-cutout-left { left: -10px; }
-        .ticket-cutout-right { right: -10px; }
+        /* Shimmer effect for progress bars */
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(250%); }
+        }
+        .animate-shimmer {
+            animation: shimmer 1.8s infinite linear;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col bg-[#FAFAFA] bg-grid-pattern text-neutral-900 selection:bg-neutral-900 selection:text-white">

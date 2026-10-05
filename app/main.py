@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import pyotp
 
 from fastapi import FastAPI, Request, Form, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -250,6 +250,17 @@ async def create_guest_form(
             recipient_email=clean_sp_email,
             sponsor_name=guest_access.sponsor_name,
             qr_b64=guest_access.qr_code_base64
+        )
+
+    # Return JSON if requested by AJAX / progress-bar frontend
+    accept_hdr = request.headers.get("accept", "")
+    if "application/json" in accept_hdr or request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JSONResponse(
+            content={
+                "success": True,
+                "redirect_url": f"/guest/{guest_access.id}",
+                "guest_id": guest_access.id
+            }
         )
 
     # Redirect to individual voucher view page

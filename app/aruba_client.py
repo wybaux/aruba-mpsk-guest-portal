@@ -403,6 +403,7 @@ class ArubaInstantClient(MockArubaClient):
             import urllib.parse
             import time
 
+            start_t = time.time()
             parsed = urllib.parse.urlparse(self.host)
             ip = parsed.hostname or self.host.replace("https://", "").replace("http://", "").split(":")[0]
 
@@ -413,32 +414,47 @@ class ArubaInstantClient(MockArubaClient):
                 timeout=10, look_for_keys=False, allow_agent=False
             )
             channel = client.invoke_shell()
-            time.sleep(1)
-            while channel.recv_ready():
-                channel.recv(4096)
+
+            # Wait dynamically for prompt ready instead of arbitrary static sleep
+            prompt_buf = ""
+            while "#" not in prompt_buf and (time.time() - start_t) < 5:
+                if channel.recv_ready():
+                    prompt_buf += channel.recv(4096).decode("utf-8", errors="ignore")
+                time.sleep(0.04)
 
             mpsk_profile = settings.ARUBA_MPSK_PROFILE or "MPSK_GUEST"
-            cmds = [
-                "conf t",
-                f"wlan mpsk-local {mpsk_profile}"
-            ]
             if delete:
-                cmds.append(f"no mpsk-local-passphrase {username}")
+                pass_cmd = f"no mpsk-local-passphrase {username}"
             else:
                 if role_name:
-                    cmds.append(f"mpsk-local-passphrase {username} {password} {role_name}")
+                    pass_cmd = f"mpsk-local-passphrase {username} {password} {role_name}"
                 else:
-                    cmds.append(f"mpsk-local-passphrase {username} {password}")
-            cmds.extend(["exit", "exit", "commit apply"])
+                    pass_cmd = f"mpsk-local-passphrase {username} {password}"
 
-            for c in cmds:
-                channel.send(c + "\n")
-                time.sleep(0.5 if "commit" not in c else 2.5)
+            # Send all commands in one single batch buffer
+            batch_cmds = (
+                f"conf t\n"
+                f"wlan mpsk-local {mpsk_profile}\n"
+                f"{pass_cmd}\n"
+                f"exit\n"
+                f"exit\n"
+                f"commit apply\n"
+            )
+            channel.send(batch_cmds)
+
+            # Wait dynamically for commit completion
+            commit_t = time.time()
+            commit_buf = ""
+            while ("committed" not in commit_buf and "#" not in commit_buf) and (time.time() - commit_t) < 4:
+                if channel.recv_ready():
+                    commit_buf += channel.recv(4096).decode("utf-8", errors="ignore")
+                time.sleep(0.04)
 
             channel.close()
             client.close()
+            elapsed = time.time() - start_t
             action = "Revoked" if delete else f"Provisioned (role={role_name})"
-            logger.info(f"[Aruba Instant MPSK] {action} passphrase for {username} in profile {mpsk_profile} on VC {ip}")
+            logger.info(f"[Aruba Instant MPSK] {action} passphrase for {username} in profile {mpsk_profile} on VC {ip} in {elapsed:.2f}s")
             return True
         except Exception as e:
             logger.warning(f"[Aruba Instant MPSK] SSH MPSK sync failed (falling back to local): {e}")

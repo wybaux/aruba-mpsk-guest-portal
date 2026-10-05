@@ -152,6 +152,23 @@ def test_web_frontend_routes():
     assert "Charte" in resp.text
     assert "VLAN 190" in resp.text
 
+    # Test AJAX JSON submission for interactive progress bar
+    ajax_resp = client.post(
+        "/create",
+        data={
+            "guest_name": "Progress User",
+            "duration_hours": "2",
+            "profile": "standard",
+            "terms_accepted": "on"
+        },
+        headers={"Accept": "application/json", "X-Requested-With": "XMLHttpRequest"}
+    )
+    assert ajax_resp.status_code == 200
+    ajax_data = ajax_resp.json()
+    assert ajax_data["success"] is True
+    assert "/guest/gst_" in ajax_data["redirect_url"]
+    assert ajax_data["guest_id"].startswith("gst_")
+
 def test_admin_login():
     from app.config import settings
     # Test valid login
