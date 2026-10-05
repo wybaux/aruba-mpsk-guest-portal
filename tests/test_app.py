@@ -20,11 +20,13 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def reset_settings_fixture():
     db.set_setting("require_otp_verification", False)
+    db.set_setting("require_guest_email", False)
     db.set_setting("allowed_sponsor_domains", "")
     db.set_setting("smtp_host", "")
     db.set_setting("duration_presets", [1, 2, 4, 8, 24])
     yield
     db.set_setting("require_otp_verification", False)
+    db.set_setting("require_guest_email", False)
     db.set_setting("allowed_sponsor_domains", "")
     db.set_setting("smtp_host", "")
     db.set_setting("duration_presets", [1, 2, 4, 8, 24])
@@ -749,6 +751,85 @@ def test_multilingual_support():
     reset_resp = client.post("/api/admin/settings/default-language", json={"language": "fr"})
     assert reset_resp.status_code == 200
     assert reset_resp.json()["default_language"] == "fr"
+
+def test_guest_email_requirement():
+    # 1. Initial state: require_guest_email is False
+    settings_resp = client.get("/api/admin/settings")
+    assert settings_resp.status_code == 200
+    assert settings_resp.json()["require_guest_email"] is False
+
+    # Guest can generate pass without email
+    resp_anon = client.post("/create", data={
+        "guest_name": "Anonymous Visitor",
+        "duration_hours": 1,
+        "profile": "standard",
+        "terms_accepted": "on"
+    }, follow_redirects=False)
+    assert resp_anon.status_code in (200, 303)
+
+    # 2. Toggle require_guest_email to True
+    toggle_resp = client.post("/api/admin/settings/toggle-require-email", json={"enabled": True})
+    assert toggle_resp.status_code == 200
+    assert toggle_resp.json()["success"] is True
+    assert toggle_resp.json()["require_guest_email"] is True
+
+    # Verify updated setting via GET
+    assert client.get("/api/admin/settings").json()["require_guest_email"] is True
+
+    # 3. Check UI reflects mandatory status and required HTML attribute
+    home_resp = client.get("/")
+    assert home_resp.status_code == 200
+    assert 'data-i18n="mandatory"' in home_resp.text
+    assert 'id="guest_email"' in home_resp.text
+    assert 'required' in home_resp.text
+
+    # 4. Attempt to create guest without email via /api/guests -> should fail with 400
+    api_fail_resp = client.post("/api/guests", json={
+        "guest_name": "No Email Visitor",
+        "duration_hours": 2,
+        "profile": "standard",
+        "terms_accepted": True
+    })
+    assert api_fail_resp.status_code == 400
+    assert "email est obligatoire" in api_fail_resp.json()["detail"]
+
+    # 5. Attempt to create guest without email via /create form -> should fail with 400
+    form_fail_resp = client.post("/create", data={
+        "guest_name": "No Email Form",
+        "duration_hours": 1,
+        "profile": "standard",
+        "terms_accepted": "on",
+        "guest_email": ""
+    })
+    assert form_fail_resp.status_code == 400
+    assert "email est obligatoire" in form_fail_resp.json()["detail"]
+
+    # 6. Create guest with valid email -> succeeds
+    api_ok_resp = client.post("/api/guests", json={
+        "guest_name": "Valid Email Visitor",
+        "duration_hours": 2,
+        "profile": "standard",
+        "terms_accepted": True,
+        "guest_email": "guest@testcorp.com"
+    })
+    assert api_ok_resp.status_code == 201
+    assert api_ok_resp.json()["guest_email"] == "guest@testcorp.com"
+
+    form_ok_resp = client.post("/create", data={
+        "guest_name": "Valid Email Form",
+        "duration_hours": 1,
+        "profile": "standard",
+        "terms_accepted": "on",
+        "guest_email": "guest2@testcorp.com"
+    }, follow_redirects=False)
+    assert form_ok_resp.status_code in (200, 303)
+
+    # 7. Toggle back to False
+    toggle_off_resp = client.post("/api/admin/settings/toggle-require-email", json={"enabled": False})
+    assert toggle_off_resp.status_code == 200
+    assert toggle_off_resp.json()["require_guest_email"] is False
+    assert client.get("/api/admin/settings").json()["require_guest_email"] is False
+
 
 
 

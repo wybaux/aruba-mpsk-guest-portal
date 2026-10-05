@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     
     # Sponsorship & OTP Verification Policies
     REQUIRE_OTP_VERIFICATION: bool = False
+    REQUIRE_GUEST_EMAIL: bool = False  # Make guest email mandatory in "Coordonnées & Réception par Email"
     ALLOWED_SPONSOR_DOMAINS: Optional[str] = None  # Comma-separated (e.g. "entreprise.com,societe.fr")
 
     # Localization

@@ -170,13 +170,13 @@
                             <i data-lucide="mail" class="w-3.5 h-3.5 text-neutral-500"></i>
                             <span data-i18n="contact_section">Coordonnées &amp; Réception par Email</span>
                         </label>
-                        <span class="text-[10px] text-neutral-400 font-medium">{% if require_otp %}<span class="text-amber-600 font-semibold" data-i18n="mandatory_otp">Vérification obligatoire</span>{% else %}<span data-i18n="optional">Optionnel</span>{% endif %}</span>
+                        <span class="text-[10px] text-neutral-400 font-medium">{% if require_otp %}<span class="text-amber-600 font-semibold" data-i18n="mandatory_otp">Vérification obligatoire</span>{% elif require_guest_email %}<span class="text-amber-600 font-semibold" data-i18n="mandatory">Obligatoire</span>{% else %}<span data-i18n="optional">Optionnel</span>{% endif %}</span>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <input type="email" id="guest_email" name="guest_email" placeholder="votre-email@exemple.com"
-                                   data-i18n-placeholder="email_ph"
+                                   data-i18n-placeholder="email_ph" {% if require_guest_email or require_otp %}required{% endif %}
                                    class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
                         </div>
                         <div>
@@ -799,6 +799,53 @@
                     </button>
                     {% else %}
                     <button type="button" onclick="toggleOtpPolicy(true)" id="btnToggleOtp"
+                            class="py-2 px-3.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                        <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i>
+                        <span>Rendre Obligatoire</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Guest Email Policy Switch (Coordonnées & Réception par Email) -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
+                        <i data-lucide="at-sign" class="w-5 h-5 text-neutral-800"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-xs text-neutral-900">Coordonnées &amp; Réception par Email (Saisie Email)</h4>
+                            {% if require_guest_email %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                <span>Obligatoire</span>
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-600 border border-neutral-200 flex items-center gap-1">
+                                <span>Optionnel</span>
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
+                            {% if require_guest_email %}
+                            L'invité doit obligatoirement renseigner son adresse email dans la section coordonnées pour pouvoir créer un accès Wi-Fi.
+                            {% else %}
+                            La saisie de l'adresse email est facultative : l'invité peut créer son pass Wi-Fi sans renseigner d'email.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    {% if require_guest_email %}
+                    <button type="button" onclick="toggleRequireEmailPolicy(false)" id="btnToggleRequireEmail"
+                            class="py-2 px-3.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5">
+                        <i data-lucide="unlock" class="w-3.5 h-3.5 text-neutral-500"></i>
+                        <span>Passer en Optionnel</span>
+                    </button>
+                    {% else %}
+                    <button type="button" onclick="toggleRequireEmailPolicy(true)" id="btnToggleRequireEmail"
                             class="py-2 px-3.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
                         <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i>
                         <span>Rendre Obligatoire</span>
@@ -2830,6 +2877,31 @@
             }
         } catch (e) {
             showToast('Erreur serveur lors de la mise à jour de la politique OTP', 'error');
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function toggleRequireEmailPolicy(enable) {
+        const btn = document.getElementById('btnToggleRequireEmail');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/admin/settings/toggle-require-email', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ enabled: enable })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(data.message || 'Politique d\'email mise à jour !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                showToast(data.detail || 'Erreur lors de la modification de la politique d\'email', 'error');
+                if (btn) btn.disabled = false;
+            }
+        } catch (e) {
+            showToast('Erreur serveur lors de la mise à jour de la politique d\'email', 'error');
             if (btn) btn.disabled = false;
         }
     }

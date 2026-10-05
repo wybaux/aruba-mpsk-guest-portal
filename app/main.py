@@ -106,6 +106,7 @@ async def home_dashboard(request: Request):
     db_metrics = db.get_metrics()
     
     require_otp = bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION))
+    require_guest_email = bool(db.get_setting("require_guest_email", getattr(settings, "REQUIRE_GUEST_EMAIL", False)))
     allowed_sponsor_domains = db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS)
     smtp_cfg = notification_service.get_smtp_config()
     duration_presets = db.get_duration_presets()
@@ -131,6 +132,7 @@ async def home_dashboard(request: Request):
             "default_profile": default_profile,
             "aruba_mode": settings.ARUBA_MODE,
             "require_otp": require_otp,
+            "require_guest_email": require_guest_email,
             "allowed_sponsor_domains": allowed_sponsor_domains,
             "smtp_cfg": smtp_cfg,
             "duration_presets": duration_presets,
@@ -195,8 +197,17 @@ async def create_guest_form(
                 detail=f"L'adresse email du parrain ({clean_sp_email}) doit appartenir à : {allowed}"
             )
 
+    # Guest email mandatory check
+    require_guest_email = bool(db.get_setting("require_guest_email", getattr(settings, "REQUIRE_GUEST_EMAIL", False)))
+    clean_guest_email = guest_email.strip() if guest_email and guest_email.strip() else None
+    if require_guest_email and not clean_guest_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Une adresse email est obligatoire dans vos coordonnées pour continuer."
+        )
+
     # OTP Verification check
-    dest = (guest_email.strip() if guest_email else None) or (guest_phone.strip() if guest_phone else None)
+    dest = clean_guest_email or (guest_phone.strip() if guest_phone else None)
     otp_verified = False
 
     require_otp = bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION))
@@ -483,8 +494,16 @@ async def api_create_guest(req: CreateGuestRequest, request: Request):
                 detail=f"L'adresse email du parrain doit appartenir à : {allowed}"
             )
 
+    # Guest email mandatory check
+    require_guest_email = bool(db.get_setting("require_guest_email", getattr(settings, "REQUIRE_GUEST_EMAIL", False)))
+    if require_guest_email and (not req.guest_email or not req.guest_email.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Une adresse email est obligatoire dans vos coordonnées pour continuer."
+        )
+
     # OTP Verification check
-    dest = req.guest_email or req.guest_phone
+    dest = (req.guest_email.strip() if req.guest_email else None) or (req.guest_phone.strip() if req.guest_phone else None)
     otp_verified = False
 
     require_otp = bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION))
@@ -940,6 +959,7 @@ async def api_admin_login(payload: AdminLoginRequest, request: Request):
 
 class UpdateSettingsPayload(BaseModel):
     require_otp_verification: Optional[bool] = None
+    require_guest_email: Optional[bool] = None
     show_generation_details: Optional[bool] = None
     default_language: Optional[str] = None
     allowed_sponsor_domains: Optional[str] = None
@@ -952,6 +972,9 @@ class UpdateSettingsPayload(BaseModel):
     duration_presets: Optional[List[int]] = None
 
 class ToggleOtpPayload(BaseModel):
+    enabled: bool
+
+class ToggleRequireEmailPayload(BaseModel):
     enabled: bool
 
 class ToggleGenDetailsPayload(BaseModel):
@@ -972,6 +995,7 @@ async def api_admin_get_settings():
     cfg = notification_service.get_smtp_config()
     return {
         "require_otp_verification": bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION)),
+        "require_guest_email": bool(db.get_setting("require_guest_email", getattr(settings, "REQUIRE_GUEST_EMAIL", False))),
         "show_generation_details": db.get_setting("show_generation_details", "true") == "true",
         "default_language": db.get_setting("default_language", getattr(settings, "DEFAULT_LANGUAGE", "fr")),
         "allowed_sponsor_domains": db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS) or "",
@@ -992,6 +1016,8 @@ async def api_admin_update_settings(payload: UpdateSettingsPayload, request: Req
 
     if payload.require_otp_verification is not None:
         db.set_setting("require_otp_verification", payload.require_otp_verification)
+    if payload.require_guest_email is not None:
+        db.set_setting("require_guest_email", payload.require_guest_email)
     if payload.show_generation_details is not None:
         db.set_setting("show_generation_details", "true" if payload.show_generation_details else "false")
     if payload.default_language is not None:
@@ -1035,6 +1061,20 @@ async def api_admin_toggle_otp(payload: ToggleOtpPayload, request: Request):
         "success": True,
         "require_otp_verification": payload.enabled,
         "message": f"La vérification OTP pour les invités est désormais {status_txt}."
+    }
+
+@app.post("/api/admin/settings/toggle-require-email")
+async def api_admin_toggle_require_email(payload: ToggleRequireEmailPayload, request: Request):
+    """Quick 1-click toggle for guest email requirement in contact section."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    db.set_setting("require_guest_email", payload.enabled)
+    status_txt = "activée (obligatoire)" if payload.enabled else "désactivée (optionnelle)"
+    db.log_audit_event("REQUIRE_EMAIL_POLICY_CHANGED", actor=actor, details=f"Saisie email invité {status_txt}")
+    return {
+        "success": True,
+        "require_guest_email": payload.enabled,
+        "message": f"La saisie de l'email pour les invités est désormais {status_txt}."
     }
 
 @app.post("/api/admin/settings/toggle-gen-details")
