@@ -70,7 +70,7 @@
                 <!-- Validity Duration Selector -->
                 <div>
                     <div class="flex items-center justify-between mb-2">
-                        <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider">
+                        <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider" data-i18n="duration_label">
                             Durée d'accès
                         </label>
                         {% set default_dur = duration_presets[1] if duration_presets|length > 1 else duration_presets[0] %}
@@ -96,7 +96,7 @@
                 <!-- Access Profile (Dynamically defined by Admin) -->
                 <div>
                     <div class="flex items-center justify-between mb-2.5">
-                        <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider">
+                        <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider" data-i18n="profiles_label">
                             Profil de connexion &amp; Débit
                         </label>
                         <span class="text-[11px] text-neutral-400">Contrôle matériel AP</span>
@@ -155,7 +155,7 @@
                 <div class="pt-1">
                     <button type="button" onclick="toggleNoteField()" class="text-xs font-medium text-neutral-500 hover:text-neutral-900 transition flex items-center gap-1.5">
                         <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
-                        <span id="noteToggleText">Ajouter une note ou un mémo (optionnel)</span>
+                        <span id="noteToggleText" data-i18n="add_note">Ajouter une note ou un mémo (optionnel)</span>
                     </button>
                     <div id="noteContainer" class="hidden mt-2">
                         <input type="text" id="note" name="note" placeholder="Ex: Salon, Téléphone pro, Soirée..."
@@ -168,18 +168,20 @@
                     <div class="flex items-center justify-between">
                         <label class="block text-xs font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
                             <i data-lucide="mail" class="w-3.5 h-3.5 text-neutral-500"></i>
-                            <span>Coordonnées &amp; Réception par Email</span>
+                            <span data-i18n="contact_section">Coordonnées &amp; Réception par Email</span>
                         </label>
-                        <span class="text-[10px] text-neutral-400 font-medium">{% if require_otp %}<span class="text-amber-600 font-semibold">Vérification obligatoire</span>{% else %}Optionnel{% endif %}</span>
+                        <span class="text-[10px] text-neutral-400 font-medium">{% if require_otp %}<span class="text-amber-600 font-semibold" data-i18n="mandatory_otp">Vérification obligatoire</span>{% else %}<span data-i18n="optional">Optionnel</span>{% endif %}</span>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <input type="email" id="guest_email" name="guest_email" placeholder="votre-email@exemple.com"
+                                   data-i18n-placeholder="email_ph"
                                    class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
                         </div>
                         <div>
                             <input type="tel" id="guest_phone" name="guest_phone" placeholder="Numéro mobile (optionnel)"
+                                   data-i18n-placeholder="phone_ph"
                                    class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
                         </div>
                     </div>
@@ -189,7 +191,7 @@
                         <button type="button" id="btnRequestOtp" onclick="requestOtpCode()"
                                 class="py-1.5 px-3 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5">
                             <i data-lucide="shield-check" class="w-3.5 h-3.5 text-neutral-600"></i>
-                            <span id="btnRequestOtpText">Vérifier par code OTP</span>
+                            <span id="btnRequestOtpText" data-i18n="verify_otp_btn">Vérifier par code OTP</span>
                         </button>
                         
                         <div id="otpInputGroup" class="hidden flex items-center gap-1.5">
@@ -205,8 +207,8 @@
 
                     <div class="flex items-center gap-2 pt-1">
                         <input type="checkbox" id="send_email_voucher" name="send_email_voucher" checked
-                               class="rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
-                        <label for="send_email_voucher" class="text-xs text-neutral-600 cursor-pointer select-none">
+                                class="rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
+                        <label for="send_email_voucher" class="text-xs text-neutral-600 cursor-pointer select-none" data-i18n="send_voucher_email">
                             M'envoyer une copie de mon billet d'accès par e-mail
                         </label>
                     </div>
@@ -216,19 +218,19 @@
                 <div class="pt-1">
                     <button type="button" onclick="toggleSponsorField()" class="text-xs font-medium text-neutral-500 hover:text-neutral-900 transition flex items-center gap-1.5">
                         <i data-lucide="building" class="w-3.5 h-3.5"></i>
-                        <span id="sponsorToggleText">Parrainé par un collaborateur interne (Optionnel)</span>
+                        <span id="sponsorToggleText" data-i18n="sponsor_toggle">Parrainé par un collaborateur interne (Optionnel)</span>
                     </button>
                     <div id="sponsorContainer" class="hidden mt-2 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80 space-y-3">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label for="sponsor_name" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">
+                                <label for="sponsor_name" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1" data-i18n="sponsor_name_label">
                                     Nom du collaborateur
                                 </label>
                                 <input type="text" id="sponsor_name" name="sponsor_name" placeholder="Ex: Alexandre Dupont"
                                        class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder-neutral-400 text-xs focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
                             </div>
                             <div>
-                                <label for="sponsor_email" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">
+                                <label for="sponsor_email" class="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1" data-i18n="sponsor_email_label">
                                     Email pro du parrain {% if allowed_sponsor_domains %}<span class="text-neutral-400 font-normal">({{ allowed_sponsor_domains }})</span>{% endif %}
                                 </label>
                                 <input type="email" id="sponsor_email" name="sponsor_email" placeholder="a.dupont@entreprise.com"
@@ -238,7 +240,7 @@
                         <div class="flex items-center gap-2 pt-1">
                             <input type="checkbox" id="send_sponsor_copy" name="send_sponsor_copy" checked
                                    class="rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
-                            <label for="send_sponsor_copy" class="text-xs text-neutral-600 cursor-pointer select-none">
+                            <label for="send_sponsor_copy" class="text-xs text-neutral-600 cursor-pointer select-none" data-i18n="sponsor_copy">
                                 Envoyer une copie du pass au parrain par e-mail
                             </label>
                         </div>
@@ -251,11 +253,10 @@
                         <input type="checkbox" id="terms_accepted" name="terms_accepted" checked required
                                class="mt-0.5 rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
                         <label for="terms_accepted" class="text-xs text-neutral-600 leading-snug cursor-pointer select-none">
-                            J'accepte et m'engage à respecter la 
-                            <button type="button" onclick="openCharterModal()" class="font-bold text-neutral-900 underline hover:text-neutral-700 decoration-neutral-400">
-                                Charte d'utilisation du réseau Wi-Fi
-                            </button> 
-                            (usage loyal et licite, interdiction d'activités illégales ou malveillantes).
+                            <span data-i18n="accept_charter">J'accepte et m'engage à respecter la Charte d'utilisation du réseau Wi-Fi</span>
+                            <button type="button" onclick="openCharterModal()" class="font-bold text-neutral-900 underline hover:text-neutral-700 decoration-neutral-400 ml-1">
+                                (<span data-i18n="read_charter">Lire la charte</span>)
+                            </button>
                         </label>
                     </div>
                     <div class="flex items-center gap-1.5 text-[10px] text-neutral-400 pl-6">
@@ -269,7 +270,7 @@
                     <button type="submit" id="btnSubmitPass"
                             class="w-full py-4 px-6 rounded-2xl bg-neutral-950 hover:bg-neutral-800 text-white font-semibold text-sm tracking-tight shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 group">
                         <i data-lucide="qr-code" class="w-4 h-4 text-neutral-400 group-hover:text-white transition"></i>
-                        <span>Générer mon accès Wi-Fi</span>
+                        <span data-i18n="generate_btn">Générer mon accès Wi-Fi</span>
                         <i data-lucide="arrow-right" class="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform"></i>
                     </button>
                 </div>
@@ -955,6 +956,38 @@
                         <span>Afficher par défaut</span>
                     </button>
                     {% endif %}
+                </div>
+            </div>
+
+            <!-- 6. Default Portal Language Card -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
+                        <i data-lucide="languages" class="w-5 h-5 text-neutral-800"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-xs text-neutral-900">Langue par Défaut du Portail</h4>
+                            {% set lang_badges = {'fr': '🇫🇷 Français', 'en': '🇬🇧 English', 'pt': '🇵🇹 Português', 'es': '🇪🇸 Español', 'de': '🇩🇪 Deutsch'} %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-900 text-white flex items-center gap-1" id="currentDefaultLangBadge">
+                                <span>{{ lang_badges[default_language] or ('🇫🇷 ' ~ default_language|upper) }}</span>
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
+                            Langue appliquée automatiquement lorsqu'un invité utilise un appareil dont la langue n'est pas reconnue. Le visiteur peut toujours changer sa langue individuellement.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-center flex-wrap">
+                    {% for lcode, lname, lflag in [('fr', 'FR', '🇫🇷'), ('en', 'EN', '🇬🇧'), ('pt', 'PT', '🇵🇹'), ('es', 'ES', '🇪🇸'), ('de', 'DE', '🇩🇪')] %}
+                    <button type="button" onclick="setDefaultPortalLanguage('{{ lcode }}')"
+                            class="py-1.5 px-2.5 rounded-xl text-xs font-semibold transition flex items-center gap-1 {% if default_language == lcode %}bg-neutral-900 text-white shadow-xs{% else %}border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700{% endif %}"
+                            title="Définir {{ lname }} comme langue par défaut">
+                        <span>{{ lflag }}</span>
+                        <span>{{ lname }}</span>
+                    </button>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -2221,10 +2254,14 @@
     // Quick Duration Selection
     function formatDurationLabel(hours) {
         hours = Number(hours);
-        if (hours === 1) return '1 heure';
-        if (hours === 24) return '24 heures (1 jour)';
-        if (hours >= 48 && hours % 24 === 0) return `${hours} heures (${hours / 24} jours)`;
-        return `${hours} heures`;
+        const lang = localStorage.getItem('portal_lang') || (typeof detectClientDeviceLanguage === 'function' ? detectClientDeviceLanguage(window.SYSTEM_DEFAULT_LANG) : 'fr');
+        const t = (typeof I18N !== 'undefined' && I18N[lang]) ? I18N[lang] : ((typeof I18N !== 'undefined' && I18N.fr) ? I18N.fr : {});
+        if (hours === 1) return t.hours_1 || '1 heure';
+        if (hours === 24) return t.hours_24 || '24 heures (1 jour)';
+        const hSuffix = t.hours_suffix || 'heures';
+        const dSuffix = t.days_suffix || 'jours';
+        if (hours >= 48 && hours % 24 === 0) return `${hours} ${hSuffix} (${hours / 24} ${dSuffix})`;
+        return `${hours} ${hSuffix}`;
     }
 
     function selectDuration(hours, btn) {
@@ -2819,6 +2856,26 @@
         } catch (e) {
             showToast('Erreur serveur lors de la mise à jour', 'error');
             if (btn) btn.disabled = false;
+        }
+    }
+
+    async function setDefaultPortalLanguage(lang) {
+        try {
+            const res = await fetch('/api/admin/settings/default-language', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ language: lang })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(data.message || 'Langue par défaut mise à jour !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                showToast(data.detail || 'Erreur lors du changement de langue', 'error');
+            }
+        } catch (e) {
+            showToast('Erreur serveur lors de la mise à jour de la langue', 'error');
         }
     }
 

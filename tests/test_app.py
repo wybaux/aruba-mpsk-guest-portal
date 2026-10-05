@@ -704,11 +704,51 @@ def test_expiry_alert_detection():
     assert len(matching_after) == 0
 
 def test_multilingual_support():
+    from app.main import detect_client_language
+
+    # 1. Verify UI contains language dropdown and Portuguese support
     resp = client.get("/")
     assert resp.status_code == 200
     assert 'id="langDropdown"' in resp.text
     assert 'setLanguage(' in resp.text
     assert 'data-i18n=' in resp.text
+    assert "setLanguage('pt')" in resp.text
+    assert "Português" in resp.text
+    assert "detectClientDeviceLanguage" in resp.text
+    assert "resetToAutoLanguage" in resp.text
+
+    # 2. Test detect_client_language helper with various Accept-Language headers
+    assert detect_client_language("pt-BR,pt;q=0.9,en;q=0.8", "fr") == "pt"
+    assert detect_client_language("pt-PT,pt;q=0.9", "fr") == "pt"
+    assert detect_client_language("en-US,en;q=0.9", "fr") == "en"
+    assert detect_client_language("es-ES,es;q=0.8", "fr") == "es"
+    assert detect_client_language("de-DE,de;q=0.8", "fr") == "de"
+    assert detect_client_language("fr-FR,fr;q=0.9", "en") == "fr"
+    # Unsupported language falls back to default
+    assert detect_client_language("it-IT,it;q=0.9", "pt") == "pt"
+    assert detect_client_language(None, "de") == "de"
+
+    # 3. Test admin default language API
+    settings_resp = client.get("/api/admin/settings")
+    assert settings_resp.status_code == 200
+    assert "default_language" in settings_resp.json()
+
+    # Set default language to pt
+    set_pt_resp = client.post("/api/admin/settings/default-language", json={"language": "pt"})
+    assert set_pt_resp.status_code == 200
+    assert set_pt_resp.json()["default_language"] == "pt"
+
+    # Verify updated setting
+    assert client.get("/api/admin/settings").json()["default_language"] == "pt"
+
+    # Test invalid language rejected
+    bad_lang_resp = client.post("/api/admin/settings/default-language", json={"language": "invalid_lang"})
+    assert bad_lang_resp.status_code == 400
+
+    # Reset back to fr
+    reset_resp = client.post("/api/admin/settings/default-language", json={"language": "fr"})
+    assert reset_resp.status_code == 200
+    assert reset_resp.json()["default_language"] == "fr"
 
 
 

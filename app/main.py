@@ -80,6 +80,21 @@ templates = Jinja2Templates(directory="app/templates")
 # WEB FRONTEND ROUTES
 # -----------------------------------------------------------------------------
 
+def detect_client_language(accept_language_header: Optional[str], default_lang: str = "fr") -> str:
+    """Detect client language from Accept-Language header (fr, en, es, de, pt)."""
+    supported = ("fr", "en", "es", "de", "pt")
+    if not accept_language_header:
+        return default_lang if default_lang in supported else "fr"
+    try:
+        for part in accept_language_header.split(","):
+            token = part.split(";")[0].strip().lower()
+            code = token.split("-")[0]
+            if code in supported:
+                return code
+    except Exception:
+        pass
+    return default_lang if default_lang in supported else "fr"
+
 @app.get("/", response_class=HTMLResponse)
 async def home_dashboard(request: Request):
     # Cleanup expired passes first
@@ -99,6 +114,8 @@ async def home_dashboard(request: Request):
     banned_macs = db.list_banned_macs()
     
     show_generation_details = db.get_setting("show_generation_details", "true") == "true"
+    default_language = db.get_setting("default_language", getattr(settings, "DEFAULT_LANGUAGE", "fr"))
+    detected_language = detect_client_language(request.headers.get("accept-language"), default_language)
     
     return templates.TemplateResponse(
         request=request,
@@ -118,6 +135,8 @@ async def home_dashboard(request: Request):
             "smtp_cfg": smtp_cfg,
             "duration_presets": duration_presets,
             "show_generation_details": show_generation_details,
+            "default_language": default_language,
+            "detected_language": detected_language,
             "users": users,
             "db_metrics": db_metrics
         }
@@ -922,6 +941,7 @@ async def api_admin_login(payload: AdminLoginRequest, request: Request):
 class UpdateSettingsPayload(BaseModel):
     require_otp_verification: Optional[bool] = None
     show_generation_details: Optional[bool] = None
+    default_language: Optional[str] = None
     allowed_sponsor_domains: Optional[str] = None
     smtp_host: Optional[str] = None
     smtp_port: Optional[int] = None
@@ -937,6 +957,9 @@ class ToggleOtpPayload(BaseModel):
 class ToggleGenDetailsPayload(BaseModel):
     enabled: bool
 
+class SetDefaultLangPayload(BaseModel):
+    language: str
+
 class TestEmailPayload(BaseModel):
     recipient_email: str
 
@@ -950,6 +973,7 @@ async def api_admin_get_settings():
     return {
         "require_otp_verification": bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION)),
         "show_generation_details": db.get_setting("show_generation_details", "true") == "true",
+        "default_language": db.get_setting("default_language", getattr(settings, "DEFAULT_LANGUAGE", "fr")),
         "allowed_sponsor_domains": db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS) or "",
         "smtp_host": cfg["host"] or "",
         "smtp_port": cfg["port"],
@@ -970,6 +994,12 @@ async def api_admin_update_settings(payload: UpdateSettingsPayload, request: Req
         db.set_setting("require_otp_verification", payload.require_otp_verification)
     if payload.show_generation_details is not None:
         db.set_setting("show_generation_details", "true" if payload.show_generation_details else "false")
+    if payload.default_language is not None:
+        clean_lang = payload.default_language.lower().strip()
+        if clean_lang in ("fr", "en", "es", "de", "pt"):
+            db.set_setting("default_language", clean_lang)
+        else:
+            raise HTTPException(status_code=400, detail=f"Langue '{clean_lang}' non supportée. Choix valides: fr, en, es, de, pt.")
     if payload.allowed_sponsor_domains is not None:
         db.set_setting("allowed_sponsor_domains", payload.allowed_sponsor_domains.strip())
     if payload.smtp_host is not None:
@@ -1019,6 +1049,22 @@ async def api_admin_toggle_gen_details(payload: ToggleGenDetailsPayload, request
         "success": True,
         "show_generation_details": payload.enabled,
         "message": f"L'affichage des détails lors de la génération est désormais {status_txt}."
+    }
+
+@app.post("/api/admin/settings/default-language")
+async def api_admin_set_default_language(payload: SetDefaultLangPayload, request: Request):
+    """Quick 1-click update for portal default fallback language."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    clean_lang = payload.language.lower().strip()
+    if clean_lang not in ("fr", "en", "es", "de", "pt"):
+        raise HTTPException(status_code=400, detail=f"Langue '{clean_lang}' non supportée. Choix valides: fr, en, es, de, pt.")
+    db.set_setting("default_language", clean_lang)
+    db.log_audit_event("DEFAULT_LANGUAGE_CHANGED", actor=actor, details=f"Langue par défaut changée pour : {clean_lang.upper()}")
+    return {
+        "success": True,
+        "default_language": clean_lang,
+        "message": f"La langue par défaut du portail est désormais : {clean_lang.upper()}."
     }
 
 @app.post("/api/admin/settings/durations")

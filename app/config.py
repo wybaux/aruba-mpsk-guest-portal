@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     REQUIRE_OTP_VERIFICATION: bool = False
     ALLOWED_SPONSOR_DOMAINS: Optional[str] = None  # Comma-separated (e.g. "entreprise.com,societe.fr")
 
+    # Localization
+    DEFAULT_LANGUAGE: str = "fr"  # Default fallback language: fr, en, es, de, pt
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -1,53 +1,53 @@
-# Guide de Contribution
+# Contributing Guidelines
 
-Merci de votre intérêt pour contribuer au projet **Wi-Fi Invités (Aruba Instant MPSK)** ! Ce guide a pour but de vous aider à participer efficacement au développement, à l'amélioration de la documentation ou au signalement de dysfonctionnements.
+Thank you for your interest in contributing to **Enterprise & Homelab Guest Wi-Fi (Aruba Instant & Central MPSK)**! This guide will help you participate effectively in development, documentation improvements, and bug reporting.
 
 ---
 
-## 🔒 Sécurité et Confidentialité (Important)
+## 🔒 Security & Privacy (Important)
 
-Ce projet manipule des identifiants d'accès réseau (mots de passe de bornes Wi-Fi, clés PSK, jetons d'API).
+This project handles network credentials (Wi-Fi access passphrases, PSK keys, API tokens).
 
 > [!CAUTION]
-> **Ne soumettez JAMAIS de secrets dans vos commits, issues ou pull requests.**
-> Assurez-vous que votre fichier `.env` ou toute clé SSH / jeton d'accès n'est jamais poussé sur GitHub.
-> Si vous découvrez une faille de sécurité sensible, merci de ne pas ouvrir une issue publique mais de contacter directement les mainteneurs.
+> **NEVER submit secrets in commits, issues, or pull requests.**
+> Ensure your `.env` file, private SSH keys, and access tokens are never pushed to GitHub.
+> If you discover a sensitive security vulnerability, please do NOT open a public issue; reach out to the project maintainers directly.
 
 ---
 
-## 🛠️ Configuration de l'Environnement de Développement
+## 🛠️ Development Environment Setup
 
-### 1. Prérequis
-- **Python 3.10** ou supérieur (testé sur 3.10, 3.11, 3.12, 3.13 et 3.14).
-- **Git** installé sur votre machine.
+### 1. Prerequisites
+- **Python 3.10** or higher (tested on 3.10, 3.11, 3.12, 3.13, and 3.14).
+- **Git** installed on your system.
 
-### 2. Cloner le dépôt et initialiser le venv
+### 2. Clone the repository and initialize virtual environment
 ```bash
-git clone https://github.com/votre-compte/wifi-guest.git
-cd wifi-guest
+git clone https://github.com/wybaux/aruba-mpsk-guest-portal.git
+cd aruba-mpsk-guest-portal
 
-# Créer un environnement virtuel
+# Create virtual environment
 python -m venv .venv
 
-# Activer l'environnement virtuel
-# Sur Linux / macOS :
+# Activate virtual environment:
+# On Linux / macOS:
 source .venv/bin/activate
-# Sur Windows PowerShell :
+# On Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
 
-# Installer les dépendances
+# Install dependencies
 pip install -r requirements.txt
 pip install pytest pytest-cov
 ```
 
-### 3. Fichier d'environnement de test
-Pour développer sans avoir besoin d'une borne physique Aruba connectée, utilisez le mode **`mock`** :
+### 3. Test environment configuration
+To develop without needing a physical Aruba Access Point connected, use the **`mock`** mode:
 
 ```bash
 cp .env.example .env
 ```
 
-Dans votre `.env`, configurez :
+In your `.env`, set:
 ```dotenv
 ARUBA_MODE=mock
 ADMIN_PASSWORD=admin123
@@ -55,48 +55,48 @@ ADMIN_PASSWORD=admin123
 
 ---
 
-## 🧪 Exécution des Tests
+## 🧪 Running Tests
 
-Avant de soumettre une contribution, assurez-vous que l'ensemble des tests automatisés passent avec succès :
+Before submitting any contribution, make sure the entire test suite passes:
 
 ```bash
-# Lancer les tests unitaires et d'intégration
+# Run unit and integration tests
 python -m pytest tests/test_app.py -v
 
-# Vérifier la couverture de code (optionnel)
+# Check test coverage (optional)
 python -m pytest --cov=app tests/
 ```
 
 ---
 
-## 🌿 Workflow Git & Branches
+## 🌿 Git Workflow & Branches
 
-1. **Forkez** le dépôt sur votre compte GitHub.
-2. Créez une branche dédiée à votre fonctionnalité ou correction :
+1. **Fork** the repository on GitHub.
+2. Create a dedicated branch for your feature or bug fix:
    ```bash
-   git checkout -b feature/nom-de-votre-fonctionnalite
-   # ou
-   git checkout -b fix/nom-du-bug
+   git checkout -b feature/your-feature-name
+   # or
+   git checkout -b fix/bug-description
    ```
-3. Effectuez des commits atomiques avec des messages clairs et descriptifs en respectant les conventions [Conventional Commits](https://www.conventionalcommits.org/) :
-   - `feat: ajout du support du protocole WPA3-Enterprise`
-   - `fix: correction de la validation du format d'adresse IP`
-   - `docs: mise à jour du guide d'installation Aruba Instant`
-4. Poussez votre branche sur votre fork :
+3. Make atomic commits with clear, descriptive messages following [Conventional Commits](https://www.conventionalcommits.org/):
+   - `feat: add Portuguese language support and device detection`
+   - `fix: correct IP address format validation`
+   - `docs: update Aruba Instant setup guide`
+4. Push your branch to your fork:
    ```bash
-   git push origin feature/nom-de-votre-fonctionnalite
+   git push origin feature/your-feature-name
    ```
-5. Ouvrez une **Pull Request** sur la branche `main` du projet d'origine en complétant le modèle de PR.
+5. Open a **Pull Request** targeting the `main` branch with the provided PR template.
 
 ---
 
-## 📐 Standards de Code
+## 📐 Code Standards
 
-- Respecter les conventions **PEP 8**.
-- Utiliser le typage Python (`typing`, modèles Pydantic) pour toute nouvelle fonction ou structure de données.
-- Veiller à ce que l'interface utilisateur reste accessible, responsive et épurée (palette de couleurs blanche/minimaliste, iconographie Lucide).
-- Tout nouveau endpoint d'API ou modification métier doit être accompagné d'un test dans `tests/test_app.py`.
+- Adhere to **PEP 8** style guidelines.
+- Use Python type annotations (`typing`, Pydantic models) for all new functions and data structures.
+- Keep UI components clean, accessible, and responsive (minimalist pure-white aesthetic, Lucide icons, Tailwind CSS).
+- Any new API endpoint or business logic change must include accompanying tests in `tests/test_app.py`.
 
 ---
 
-Merci pour vos contributions ! 🎉
+Thank you for contributing! 🎉
