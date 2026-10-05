@@ -528,6 +528,32 @@ def test_admin_settings_api():
     assert reset_resp.status_code == 200
     assert reset_resp.json()["duration_presets"] == [1, 2, 4, 8, 24]
 
+    # 8. Test toggle generation details display policy
+    toggle_gen1 = client.post("/api/admin/settings/toggle-gen-details", json={"enabled": False})
+    assert toggle_gen1.status_code == 200
+    assert toggle_gen1.json()["show_generation_details"] is False
+
+    settings_gen1 = client.get("/api/admin/settings").json()
+    assert settings_gen1["show_generation_details"] is False
+
+    toggle_gen2 = client.post("/api/admin/settings/toggle-gen-details", json={"enabled": True})
+    assert toggle_gen2.status_code == 200
+    assert toggle_gen2.json()["show_generation_details"] is True
+
+    # 9. Test AJAX /create JSON response
+    form_create = {
+        "guest_name": "Ajax Guest Test",
+        "duration_hours": "2",
+        "profile": "standard",
+        "terms_accepted": "on"
+    }
+    ajax_resp = client.post("/create", data=form_create, headers={"Accept": "application/json"})
+    assert ajax_resp.status_code == 200
+    ajax_data = ajax_resp.json()
+    assert ajax_data["success"] is True
+    assert "guest_id" in ajax_data
+    assert "redirect_url" in ajax_data
+
 def test_pass_extension():
     # 1. Create a guest pass
     create_resp = client.post("/api/guests", json={

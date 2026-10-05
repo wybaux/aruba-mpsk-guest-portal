@@ -98,6 +98,8 @@ async def home_dashboard(request: Request):
     connected_clients = aruba_client.get_connected_clients()
     banned_macs = db.list_banned_macs()
     
+    show_generation_details = db.get_setting("show_generation_details", "true") == "true"
+    
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -115,6 +117,7 @@ async def home_dashboard(request: Request):
             "allowed_sponsor_domains": allowed_sponsor_domains,
             "smtp_cfg": smtp_cfg,
             "duration_presets": duration_presets,
+            "show_generation_details": show_generation_details,
             "users": users,
             "db_metrics": db_metrics
         }
@@ -918,6 +921,7 @@ async def api_admin_login(payload: AdminLoginRequest, request: Request):
 
 class UpdateSettingsPayload(BaseModel):
     require_otp_verification: Optional[bool] = None
+    show_generation_details: Optional[bool] = None
     allowed_sponsor_domains: Optional[str] = None
     smtp_host: Optional[str] = None
     smtp_port: Optional[int] = None
@@ -928,6 +932,9 @@ class UpdateSettingsPayload(BaseModel):
     duration_presets: Optional[List[int]] = None
 
 class ToggleOtpPayload(BaseModel):
+    enabled: bool
+
+class ToggleGenDetailsPayload(BaseModel):
     enabled: bool
 
 class TestEmailPayload(BaseModel):
@@ -942,6 +949,7 @@ async def api_admin_get_settings():
     cfg = notification_service.get_smtp_config()
     return {
         "require_otp_verification": bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION)),
+        "show_generation_details": db.get_setting("show_generation_details", "true") == "true",
         "allowed_sponsor_domains": db.get_setting("allowed_sponsor_domains", settings.ALLOWED_SPONSOR_DOMAINS) or "",
         "smtp_host": cfg["host"] or "",
         "smtp_port": cfg["port"],
@@ -960,6 +968,8 @@ async def api_admin_update_settings(payload: UpdateSettingsPayload, request: Req
 
     if payload.require_otp_verification is not None:
         db.set_setting("require_otp_verification", payload.require_otp_verification)
+    if payload.show_generation_details is not None:
+        db.set_setting("show_generation_details", "true" if payload.show_generation_details else "false")
     if payload.allowed_sponsor_domains is not None:
         db.set_setting("allowed_sponsor_domains", payload.allowed_sponsor_domains.strip())
     if payload.smtp_host is not None:
@@ -995,6 +1005,20 @@ async def api_admin_toggle_otp(payload: ToggleOtpPayload, request: Request):
         "success": True,
         "require_otp_verification": payload.enabled,
         "message": f"La vérification OTP pour les invités est désormais {status_txt}."
+    }
+
+@app.post("/api/admin/settings/toggle-gen-details")
+async def api_admin_toggle_gen_details(payload: ToggleGenDetailsPayload, request: Request):
+    """Quick 1-click toggle for showing/hiding generation technical details by default."""
+    current = get_current_user_from_request(request)
+    actor = current["username"] if current else "admin"
+    db.set_setting("show_generation_details", "true" if payload.enabled else "false")
+    status_txt = "activé (détails affichés)" if payload.enabled else "désactivé (vue épurée)"
+    db.log_audit_event("GEN_DETAILS_POLICY_CHANGED", actor=actor, details=f"Détails de génération {status_txt}")
+    return {
+        "success": True,
+        "show_generation_details": payload.enabled,
+        "message": f"L'affichage des détails lors de la génération est désormais {status_txt}."
     }
 
 @app.post("/api/admin/settings/durations")

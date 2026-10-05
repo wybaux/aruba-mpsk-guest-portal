@@ -910,6 +910,53 @@
                     </button>
                 </div>
             </div>
+
+            <!-- 5. Technical Generation Details Display Card -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
+                        <i data-lucide="layers" class="w-5 h-5 text-neutral-800"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-xs text-neutral-900">Détails Techniques lors de la Génération</h4>
+                            {% if show_generation_details %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-900 text-white flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                <span>Affichés par défaut</span>
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-600 border border-neutral-200 flex items-center gap-1">
+                                <span>Masqués par défaut (Vue épurée)</span>
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
+                            {% if show_generation_details %}
+                            Les 4 étapes techniques (MPSK, SSH Aruba, QR Code, Billet) sont déployées et visibles pour les visiteurs.
+                            {% else %}
+                            Seule la barre de chargement moderne et le statut global sont affichés (les détails restent repliables manuellement).
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    {% if show_generation_details %}
+                    <button type="button" onclick="toggleGenDetailsPolicy(false)" id="btnToggleAdminGenDetails"
+                            class="py-2 px-3.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5">
+                        <i data-lucide="eye-off" class="w-3.5 h-3.5 text-neutral-500"></i>
+                        <span>Masquer par défaut</span>
+                    </button>
+                    {% else %}
+                    <button type="button" onclick="toggleGenDetailsPolicy(true)" id="btnToggleAdminGenDetails"
+                            class="py-2 px-3.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                        <i data-lucide="eye" class="w-3.5 h-3.5 text-neutral-300"></i>
+                        <span>Afficher par défaut</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
         </div>
 
         <!-- Users List Header -->
@@ -1200,31 +1247,43 @@
             </div>
         </div>
 
-        <!-- Step-by-Step Status Flow -->
-        <div class="bg-neutral-50/80 border border-neutral-200/80 rounded-2xl p-4 text-left space-y-2.5 text-xs text-neutral-600 mb-5" id="genStepsList">
-            <div class="flex items-center gap-2.5 transition-colors" id="stepItem1">
-                <div class="w-5 h-5 rounded-full flex items-center justify-center bg-neutral-200 text-neutral-600 text-[10px] font-bold shrink-0" id="stepBadge1">
-                    <span>1</span>
+        <!-- Toggle Details Button & Elapsed Timer -->
+        <div class="flex items-center justify-between pt-1 mb-2.5">
+            <button type="button" onclick="toggleGenerationDetails()" id="btnToggleGenDetails"
+                    class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500 hover:text-neutral-900 transition py-1 px-2.5 rounded-xl hover:bg-neutral-100">
+                <i data-lucide="chevron-up" class="w-3.5 h-3.5 transition-transform duration-200" id="iconToggleGenDetails"></i>
+                <span id="textToggleGenDetails">Masquer les détails</span>
+            </button>
+            <span class="text-[10px] font-mono text-neutral-400 font-medium px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100" id="genElapsedTime">0.0s</span>
+        </div>
+
+        <!-- Step-by-Step Status Flow (Collapsible) -->
+        <div id="genStepsContainer" class="overflow-hidden transition-all duration-300 max-h-96 opacity-100">
+            <div class="bg-neutral-50/80 border border-neutral-200/80 rounded-2xl p-4 text-left space-y-2.5 text-xs text-neutral-600 mb-5" id="genStepsList">
+                <div class="flex items-center gap-2.5 transition-colors" id="stepItem1">
+                    <div class="w-5 h-5 rounded-full flex items-center justify-center bg-neutral-200 text-neutral-600 text-[10px] font-bold shrink-0" id="stepBadge1">
+                        <span>1</span>
+                    </div>
+                    <span class="flex-1 font-medium" id="stepText1">Génération de la clé cryptographique MPSK</span>
                 </div>
-                <span class="flex-1 font-medium" id="stepText1">Génération de la clé cryptographique MPSK</span>
-            </div>
-            <div class="flex items-center gap-2.5 transition-colors text-neutral-400" id="stepItem2">
-                <div class="w-5 h-5 rounded-full flex items-center justify-center bg-neutral-200/70 text-neutral-400 text-[10px] font-bold shrink-0" id="stepBadge2">
-                    <span>2</span>
+                <div class="flex items-center gap-2.5 transition-colors text-neutral-400" id="stepItem2">
+                    <div class="w-5 h-5 rounded-full flex items-center justify-center bg-neutral-200/70 text-neutral-400 text-[10px] font-bold shrink-0" id="stepBadge2">
+                        <span>2</span>
+                    </div>
+                    <span class="flex-1 font-medium" id="stepText2">Synchronisation matérielle avec la borne Aruba Instant</span>
                 </div>
-                <span class="flex-1 font-medium" id="stepText2">Synchronisation matérielle avec la borne Aruba Instant</span>
-            </div>
-            <div class="flex items-center gap-2.5 transition-colors text-neutral-400" id="stepItem3">
-                <div class="w-5 h-5 rounded-full flex items-center justify-center bg-neutral-200/70 text-neutral-400 text-[10px] font-bold shrink-0" id="stepBadge3">
-                    <span>3</span>
+                <div class="flex items-center gap-2.5 transition-colors text-neutral-400" id="stepItem3">
+                    <div class="w-5 h-5 rounded-full flex items-center justify-center bg-neutral-200/70 text-neutral-400 text-[10px] font-bold shrink-0" id="stepBadge3">
+                        <span>3</span>
+                    </div>
+                    <span class="flex-1 font-medium" id="stepText3">Encodage du QR Code universel ZXing &amp; VLAN 190</span>
                 </div>
-                <span class="flex-1 font-medium" id="stepText3">Encodage du QR Code universel ZXing &amp; VLAN 190</span>
-            </div>
-            <div class="flex items-center gap-2.5 transition-colors text-neutral-400" id="stepItem4">
-                <div class="w-5 h-5 rounded-full flex items-center justify-center bg-neutral-200/70 text-neutral-400 text-[10px] font-bold shrink-0" id="stepBadge4">
-                    <span>4</span>
+                <div class="flex items-center gap-2.5 transition-colors text-neutral-400" id="stepItem4">
+                    <div class="w-5 h-5 rounded-full flex items-center justify-center bg-neutral-200/70 text-neutral-400 text-[10px] font-bold shrink-0" id="stepBadge4">
+                        <span>4</span>
+                    </div>
+                    <span class="flex-1 font-medium" id="stepText4">Délivrance de votre billet invité</span>
                 </div>
-                <span class="flex-1 font-medium" id="stepText4">Délivrance de votre billet invité</span>
             </div>
         </div>
 
@@ -1860,13 +1919,53 @@
     // Pass Generation Progress Logic (Animated Step-by-Step Bar & Realtime Sync)
     // =========================================================================
     let genProgressTimers = [];
+    let genElapsedInterval = null;
+    let genStartTime = 0;
+    const DEFAULT_SHOW_GEN_DETAILS = {{ 'true' if show_generation_details else 'false' }};
 
     function clearGenTimers() {
         genProgressTimers.forEach(t => clearTimeout(t));
         genProgressTimers = [];
+        if (genElapsedInterval) {
+            clearInterval(genElapsedInterval);
+            genElapsedInterval = null;
+        }
+    }
+
+    function toggleGenerationDetails() {
+        const container = document.getElementById('genStepsContainer');
+        if (!container) return;
+        const isCollapsed = container.classList.contains('max-h-0');
+        applyGenDetailsVisibility(isCollapsed);
+        localStorage.setItem('wifi_guest_show_gen_details', isCollapsed ? 'true' : 'false');
+    }
+
+    function applyGenDetailsVisibility(show) {
+        const container = document.getElementById('genStepsContainer');
+        const icon = document.getElementById('iconToggleGenDetails');
+        const text = document.getElementById('textToggleGenDetails');
+        if (!container) return;
+
+        if (show) {
+            container.classList.remove('max-h-0', 'opacity-0');
+            container.classList.add('max-h-96', 'opacity-100');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'chevron-up');
+            }
+            if (text) text.textContent = "Masquer les détails";
+        } else {
+            container.classList.remove('max-h-96', 'opacity-100');
+            container.classList.add('max-h-0', 'opacity-0');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'chevron-down');
+            }
+            if (text) text.textContent = "Afficher les détails";
+        }
+        lucide.createIcons();
     }
 
     function openGenProgressModal() {
+        clearGenTimers();
         const modal = document.getElementById('generationProgressModal');
         const card = document.getElementById('generationProgressCard');
         const errorBox = document.getElementById('genModalErrorBox');
@@ -1889,6 +1988,21 @@
         if (bar) bar.className = 'h-full rounded-full bg-neutral-950 transition-all duration-300 ease-out relative overflow-hidden';
         if (subtitle) subtitle.textContent = "Initialisation des protocoles de sécurité MPSK...";
         if (label) label.textContent = "Synchronisation active";
+
+        // Details display preference: visitor localStorage || admin default
+        const savedPref = localStorage.getItem('wifi_guest_show_gen_details');
+        const shouldShowDetails = (savedPref !== null) ? (savedPref === 'true') : DEFAULT_SHOW_GEN_DETAILS;
+        applyGenDetailsVisibility(shouldShowDetails);
+
+        // Live Elapsed Stopwatch
+        const elapsedEl = document.getElementById('genElapsedTime');
+        if (elapsedEl) elapsedEl.textContent = '0.0s';
+        genStartTime = Date.now();
+        if (genElapsedInterval) clearInterval(genElapsedInterval);
+        genElapsedInterval = setInterval(() => {
+            const sec = ((Date.now() - genStartTime) / 1000).toFixed(1);
+            if (elapsedEl) elapsedEl.textContent = sec + 's';
+        }, 100);
 
         modal.classList.remove('hidden');
         setTimeout(() => {
@@ -1964,7 +2078,6 @@
         openGenProgressModal();
         setProgressStage(15, 1, "Génération de la clé cryptographique MPSK...");
 
-        clearGenTimers();
         genProgressTimers.push(setTimeout(() => {
             setProgressStage(45, 2, "Synchronisation matérielle avec la borne Aruba Instant...");
         }, 350));
@@ -2680,6 +2793,31 @@
             }
         } catch (e) {
             showToast('Erreur serveur lors de la mise à jour de la politique OTP', 'error');
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function toggleGenDetailsPolicy(enable) {
+        const btn = document.getElementById('btnToggleAdminGenDetails');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/admin/settings/toggle-gen-details', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ enabled: enable })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(data.message || 'Préférence d\'affichage mise à jour !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                showToast(data.detail || 'Erreur lors de la mise à jour', 'error');
+                if (btn) btn.disabled = false;
+            }
+        } catch (e) {
+            showToast('Erreur serveur lors de la mise à jour', 'error');
             if (btn) btn.disabled = false;
         }
     }
