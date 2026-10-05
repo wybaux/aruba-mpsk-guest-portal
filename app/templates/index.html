@@ -958,11 +958,16 @@
                         </div>
                         <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
                             {% if vc_cfg.mode == 'instant' %}
-                            Synchronisation directe SSH/CLI des clés MPSK sur le Virtual Controller <code class="font-mono text-neutral-800 font-semibold">{{ vc_cfg.host }}</code> &bull; Profil WLAN : <code class="font-mono text-neutral-800">{{ vc_cfg.mpsk_profile }}</code>.
+                            Synchronisation SSH directe des clés sur le VC <code class="font-mono text-neutral-800 font-semibold">{{ vc_cfg.host }}</code> &bull; Profil WLAN : <code class="font-mono text-neutral-800">{{ vc_cfg.mpsk_profile }}</code> &bull; SSID : <strong class="text-neutral-900 font-mono">{{ ssid }}</strong>.
                             {% elif vc_cfg.mode == 'central' %}
-                            Provisionnement et synchronisation des clés MPSK via l'API REST Cloud Aruba Central.
+                            Provisionnement des clés via API REST Cloud Aruba Central &bull; SSID : <strong class="text-neutral-900 font-mono">{{ ssid }}</strong>.
                             {% else %}
-                            Mode simulation autonome sans contrôleur physique requis : les clés MPSK sont gérées et simulées en base locale.
+                            Mode simulation locale sans contrôleur matériel requis &bull; SSID : <strong class="text-neutral-900 font-mono">{{ ssid }}</strong>.
+                            {% endif %}
+                            {% if vc_cfg.wifi_password %}
+                            <span class="inline-block mt-0.5 text-amber-700 font-semibold">&bull; Clé Wi-Fi fixe active (<code class="font-mono text-[10px]">{{ vc_cfg.wifi_password }}</code>)</span>
+                            {% else %}
+                            <span class="inline-block mt-0.5 text-emerald-700 font-semibold">&bull; Clés MPSK uniques dynamiques par invité</span>
                             {% endif %}
                         </p>
                     </div>
@@ -1839,6 +1844,32 @@
                     <option value="mock">Simulation locale (Lab / Homelab sans contrôleur matériel)</option>
                     <option value="central">Aruba Central (Plateforme Cloud)</option>
                 </select>
+            </div>
+
+            <!-- Paramètres Réseau Wi-Fi & Clé d'Accès (SSID & Clé) -->
+            <div class="p-3.5 rounded-2xl bg-neutral-50/90 border border-neutral-200/80 space-y-3">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="wifi" class="w-4 h-4 text-neutral-800"></i>
+                    <h4 class="text-xs font-bold text-neutral-900">Réseau Wi-Fi (SSID) &amp; Clé d'Accès</h4>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label for="vc_ssid_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1">
+                            Nom du Réseau (SSID)
+                        </label>
+                        <input type="text" id="vc_ssid_input" placeholder="ex: Public-Test ou Guest-WiFi"
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                        <span class="text-[10px] text-neutral-400 block mt-1">Nom diffusé par vos bornes et encodé dans le QR code.</span>
+                    </div>
+                    <div>
+                        <label for="vc_fixed_pwd_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1">
+                            Clé Wi-Fi Fixe (Optionnel)
+                        </label>
+                        <input type="text" id="vc_fixed_pwd_input" placeholder="Laisser vide = MPSK dynamique"
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-white text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition">
+                        <span class="text-[10px] text-neutral-400 block mt-1">Vide : clé unique par invité. Rempli : clé fixe partagée.</span>
+                    </div>
+                </div>
             </div>
 
             <div id="vcInstantFields" class="space-y-4">
@@ -3349,6 +3380,12 @@
                 }
                 document.getElementById('vc_mpsk_profile_input').value = data.aruba_mpsk_profile || 'Guest-MPSK';
                 document.getElementById('vc_verify_ssl_input').checked = !!data.aruba_instant_verify_ssl;
+                if (document.getElementById('vc_ssid_input')) {
+                    document.getElementById('vc_ssid_input').value = data.wifi_ssid || 'Public-Test';
+                }
+                if (document.getElementById('vc_fixed_pwd_input')) {
+                    document.getElementById('vc_fixed_pwd_input').value = data.wifi_password || '';
+                }
                 toggleVcModeFields();
             }
         } catch (e) {
@@ -3473,12 +3510,19 @@
         btn.innerHTML = '<span>Enregistrement...</span>';
         if (errorMsg) errorMsg.classList.add('hidden');
 
+        const ssidInput = document.getElementById('vc_ssid_input');
+        const fixedPwdInput = document.getElementById('vc_fixed_pwd_input');
+        const wifiSsid = ssidInput ? ssidInput.value.trim() : '';
+        const wifiPassword = fixedPwdInput ? fixedPwdInput.value.trim() : '';
+
         const payload = {
             aruba_mode: mode,
             aruba_instant_host: host,
             aruba_instant_username: username,
             aruba_mpsk_profile: mpskProfile,
-            aruba_instant_verify_ssl: verifySsl
+            aruba_instant_verify_ssl: verifySsl,
+            wifi_ssid: wifiSsid,
+            wifi_password: wifiPassword
         };
         if (password) {
             payload.aruba_instant_password = password;

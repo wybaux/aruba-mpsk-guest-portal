@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.config import settings
 settings.ARUBA_MODE = "mock"
 
-from app.main import app
+from app.main import app, aruba_client
 from app.aruba_client import MockArubaClient
 from app.models import ProfileEnum
 from app.db import db
@@ -24,12 +24,16 @@ def reset_settings_fixture():
     db.set_setting("allowed_sponsor_domains", "")
     db.set_setting("smtp_host", "")
     db.set_setting("duration_presets", [1, 2, 4, 8, 24])
+    db.set_setting("wifi_ssid", "Public-Test")
+    db.set_setting("wifi_password", "")
     yield
     db.set_setting("require_otp_verification", False)
     db.set_setting("require_guest_email", False)
     db.set_setting("allowed_sponsor_domains", "")
     db.set_setting("smtp_host", "")
     db.set_setting("duration_presets", [1, 2, 4, 8, 24])
+    db.set_setting("wifi_ssid", "Public-Test")
+    db.set_setting("wifi_password", "")
 
 def test_qr_generator():
     wifi_str = build_wifi_qr_string("TestSSID", "SecretPass123", "WPA")
@@ -920,6 +924,71 @@ def test_aruba_vc_settings_and_test_connection():
     # 9. Clean up and restore mock mode
     reset_resp = client.post("/api/admin/settings", json={"aruba_mode": "mock"})
     assert reset_resp.status_code == 200
+
+def test_wifi_ssid_and_password_settings():
+    """Verify configuring SSID and fixed vs dynamic MPSK keys via web API."""
+    # 1. Read default settings
+    res = client.get("/api/admin/settings")
+    assert res.status_code == 200
+    data = res.json()
+    assert "wifi_ssid" in data
+    assert "wifi_password" in data
+
+    # 2. Update SSID and set a fixed static Wi-Fi password
+    update_res = client.post("/api/admin/settings", json={
+        "wifi_ssid": "VIP-Conference-WiFi",
+        "wifi_password": "MySuperSecretKey2026!"
+    })
+    assert update_res.status_code == 200
+    assert update_res.json()["success"] is True
+
+    # Check updated settings
+    res2 = client.get("/api/admin/settings")
+    data2 = res2.json()
+    assert data2["wifi_ssid"] == "VIP-Conference-WiFi"
+    assert data2["wifi_password"] == "MySuperSecretKey2026!"
+
+    # 3. Create a guest pass with fixed password
+    create_res = client.post("/create", data={
+        "guest_name": "VIP Guest 1",
+        "duration_hours": 2,
+        "profile": "standard",
+        "terms_accepted": "true"
+    }, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert create_res.status_code == 200
+    guest_id = create_res.json()["guest_id"]
+    pass_data = db.get_pass(guest_id)
+    assert pass_data is not None
+    assert pass_data["ssid"] == "VIP-Conference-WiFi"
+    assert pass_data["password"] == "MySuperSecretKey2026!"
+
+    # 4. Check home page renders new SSID
+    home_resp = client.get("/")
+    assert home_resp.status_code == 200
+    assert "VIP-Conference-WiFi" in home_resp.text
+
+    # 5. Clear static password (reverting to dynamic MPSK individual random passwords)
+    clear_res = client.post("/api/admin/settings", json={
+        "wifi_ssid": "VIP-Conference-WiFi",
+        "wifi_password": ""
+    })
+    assert clear_res.status_code == 200
+
+    create_res2 = client.post("/create", data={
+        "guest_name": "VIP Guest 2",
+        "duration_hours": 2,
+        "profile": "standard",
+        "terms_accepted": "true"
+    }, headers={"X-Requested-With": "XMLHttpRequest"})
+    assert create_res2.status_code == 200
+    guest_id2 = create_res2.json()["guest_id"]
+    pass_data2 = db.get_pass(guest_id2)
+    assert pass_data2 is not None
+    assert pass_data2["ssid"] == "VIP-Conference-WiFi"
+    # Individual random 10-char password generated
+    assert pass_data2["password"] != "MySuperSecretKey2026!"
+    assert len(pass_data2["password"]) == 10
+
 
 
 

@@ -135,7 +135,7 @@ async def home_dashboard(request: Request):
         context={
             "app_title": branding.get("portal_title") or settings.APP_TITLE,
             "branding": branding,
-            "ssid": settings.WIFI_SSID,
+            "ssid": db.get_setting("wifi_ssid", settings.WIFI_SSID) or "Public-Test",
             "active_passes": active_passes,
             "connected_clients": connected_clients,
             "banned_macs": banned_macs,
@@ -982,6 +982,8 @@ class UpdateSettingsPayload(BaseModel):
     smtp_from: Optional[str] = None
     smtp_tls: Optional[bool] = None
     duration_presets: Optional[List[int]] = None
+    wifi_ssid: Optional[str] = None
+    wifi_password: Optional[str] = None
     aruba_mode: Optional[str] = None
     aruba_instant_host: Optional[str] = None
     aruba_instant_username: Optional[str] = None
@@ -1033,6 +1035,8 @@ async def api_admin_get_settings():
         "smtp_tls": cfg["tls"],
         "has_smtp_password": bool(cfg["password"]),
         "duration_presets": db.get_duration_presets(),
+        "wifi_ssid": db.get_setting("wifi_ssid", settings.WIFI_SSID) or "Public-Test",
+        "wifi_password": db.get_setting("wifi_password", getattr(settings, "WIFI_PASSWORD", "")) or "",
         "aruba_mode": vc_cfg["mode"],
         "aruba_instant_host": vc_cfg["host"],
         "aruba_instant_username": vc_cfg["username"],
@@ -1078,6 +1082,10 @@ async def api_admin_update_settings(payload: UpdateSettingsPayload, request: Req
             db.set_duration_presets(payload.duration_presets)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+    if payload.wifi_ssid is not None:
+        db.set_setting("wifi_ssid", payload.wifi_ssid.strip())
+    if payload.wifi_password is not None:
+        db.set_setting("wifi_password", payload.wifi_password.strip())
 
     # Aruba Virtual Controller settings
     vc_updated = False

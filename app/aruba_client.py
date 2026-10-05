@@ -161,8 +161,13 @@ class MockArubaClient(BaseArubaClient):
         otp_verified: bool = False
     ) -> GuestAccess:
         guest_id = f"gst_{secrets.token_hex(4)}"
-        password = settings.WIFI_PASSWORD if (settings.WIFI_PASSWORD and settings.WIFI_PASSWORD.strip()) else generate_random_password(10)
+        fixed_pwd = db.get_setting("wifi_password", getattr(settings, "WIFI_PASSWORD", None))
+        if fixed_pwd and str(fixed_pwd).strip():
+            password = str(fixed_pwd).strip()
+        else:
+            password = generate_random_password(10)
         
+        current_ssid = db.get_setting("wifi_ssid", getattr(settings, "WIFI_SSID", "Public-Test")) or "Public-Test"
         profile_str = profile.value if hasattr(profile, "value") else str(profile)
         profile_info = profile_manager.get(profile_str)
         vlan_id = profile_info.vlan_id if profile_info else 190
@@ -173,7 +178,7 @@ class MockArubaClient(BaseArubaClient):
         pass_data = {
             "id": guest_id,
             "guest_name": guest_name,
-            "ssid": settings.WIFI_SSID,
+            "ssid": current_ssid,
             "password": password,
             "vlan_id": vlan_id,
             "profile": profile_str,
@@ -588,7 +593,9 @@ def get_aruba_config() -> dict:
         "username": db.get_setting("aruba_instant_username", settings.ARUBA_INSTANT_USERNAME) or "admin",
         "password": db.get_setting("aruba_instant_password", settings.ARUBA_INSTANT_PASSWORD) or "",
         "verify_ssl": bool(db.get_setting("aruba_instant_verify_ssl", settings.ARUBA_INSTANT_VERIFY_SSL)),
-        "mpsk_profile": db.get_setting("aruba_mpsk_profile", settings.ARUBA_MPSK_PROFILE) or "MPSK_GUEST"
+        "mpsk_profile": db.get_setting("aruba_mpsk_profile", settings.ARUBA_MPSK_PROFILE) or "MPSK_GUEST",
+        "wifi_ssid": db.get_setting("wifi_ssid", settings.WIFI_SSID) or "Public-Test",
+        "wifi_password": db.get_setting("wifi_password", getattr(settings, "WIFI_PASSWORD", "")) or ""
     }
 
 def test_vc_connection(
