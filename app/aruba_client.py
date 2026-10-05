@@ -488,32 +488,52 @@ class ArubaInstantClient(MockArubaClient):
                 time.sleep(0.04)
 
             mpsk_profile = db.get_setting("aruba_mpsk_profile", settings.ARUBA_MPSK_PROFILE) or "MPSK_GUEST"
+
+            def _send_cmd(cmd: str, timeout: float = 3.5) -> str:
+                channel.send(cmd + "\n")
+                t0 = time.time()
+                buf = ""
+                while (time.time() - t0) < timeout:
+                    if channel.recv_ready():
+                        chunk = channel.recv(4096).decode("utf-8", errors="ignore")
+                        buf += chunk
+                        if any(p in buf for p in ("#", ">", "committed", "commit")):
+                            break
+                    time.sleep(0.04)
+                return buf
+
+            # Step 1: Enter configuration terminal mode
+            out_conf = _send_cmd("conf t")
+            logger.debug(f"[Aruba Instant CLI] conf t -> {out_conf.strip()}")
+
+            # Step 2: Enter MPSK local profile sub-mode
+            out_prof = _send_cmd(f"wlan mpsk-local {mpsk_profile}")
+            logger.debug(f"[Aruba Instant CLI] wlan mpsk-local {mpsk_profile} -> {out_prof.strip()}")
+
+            # Step 3: Add or remove passphrase
             if delete:
-                pass_cmd = f"no mpsk-local-passphrase {username}"
+                out_pass = _send_cmd(f"no mpsk-local-passphrase {username}")
+                logger.info(f"[Aruba Instant CLI] Revoked {username}: {out_pass.strip()}")
             else:
-                if role_name:
-                    pass_cmd = f"mpsk-local-passphrase {username} {password} {role_name}"
+                pass_cmd = f"mpsk-local-passphrase {username} {password}"
+                # If a role is provided, try with role first
+                if role_name and role_name.strip() and role_name.strip().lower() not in ("standard", "guest-standard", "default"):
+                    cmd_with_role = f"mpsk-local-passphrase {username} {password} {role_name.strip()}"
+                    out_pass = _send_cmd(cmd_with_role)
+                    if any(err in out_pass.lower() for err in ("invalid", "error", "not found", "^")):
+                        logger.warning(f"[Aruba Instant CLI] Role '{role_name}' refused by AP ({out_pass.strip()}), falling back to default role")
+                        out_pass = _send_cmd(pass_cmd)
                 else:
-                    pass_cmd = f"mpsk-local-passphrase {username} {password}"
+                    out_pass = _send_cmd(pass_cmd)
 
-            # Send all commands in one single batch buffer
-            batch_cmds = (
-                f"conf t\n"
-                f"wlan mpsk-local {mpsk_profile}\n"
-                f"{pass_cmd}\n"
-                f"exit\n"
-                f"exit\n"
-                f"commit apply\n"
-            )
-            channel.send(batch_cmds)
+                logger.info(f"[Aruba Instant CLI] Provisioned {username}: {out_pass.strip()}")
 
-            # Wait dynamically for commit completion
-            commit_t = time.time()
-            commit_buf = ""
-            while ("committed" not in commit_buf and "#" not in commit_buf) and (time.time() - commit_t) < 4:
-                if channel.recv_ready():
-                    commit_buf += channel.recv(4096).decode("utf-8", errors="ignore")
-                time.sleep(0.04)
+            # Step 4: Exit back to privileged EXEC mode
+            _send_cmd("end")
+
+            # Step 5: Commit apply
+            out_commit = _send_cmd("commit apply", timeout=6.0)
+            logger.info(f"[Aruba Instant CLI] Commit apply: {out_commit.strip()}")
 
             channel.close()
             client.close()
@@ -732,10 +752,34 @@ def test_vc_connection(
                 prompt_buf += channel.recv(4096).decode("utf-8", errors="ignore")
             time.sleep(0.04)
 
+        # Inspect MPSK profile and SSID config on the AP
+        mpsk_profile = db.get_setting("aruba_mpsk_profile", settings.ARUBA_MPSK_PROFILE) or "MPSK_GUEST"
+        current_ssid = db.get_setting("wifi_ssid", settings.WIFI_SSID) or "Public-Test"
+        
+        channel.send("show configuration | include mpsk\n")
+        cfg_buf = ""
+        chk_start = time.time()
+        while (time.time() - chk_start) < 2.5:
+            if channel.recv_ready():
+                cfg_buf += channel.recv(4096).decode("utf-8", errors="ignore")
+                if "#" in cfg_buf:
+                    break
+            time.sleep(0.04)
+
         channel.close()
         client.close()
         elapsed = round(time.time() - start_t, 2)
-        return True, f"Connexion SSH réussie au Virtual Controller Aruba Instant ({ip}:22) en {elapsed}s avec l'utilisateur '{target_user}' ! Invite de commande détectée."
+
+        # Check diagnostics if output was received
+        diag_notes = []
+        if cfg_buf and len(cfg_buf.strip()) > 0:
+            if mpsk_profile.lower() not in cfg_buf.lower():
+                diag_notes.append(f"Profil '{mpsk_profile}' non trouvé sur l'AP (créer via 'wlan mpsk-local {mpsk_profile}')")
+            if "opmode mpsk-local" not in cfg_buf.lower():
+                diag_notes.append(f"SSID non configuré en 'opmode mpsk-local' (lier le SSID au profil MPSK)")
+
+        diag_str = f" [Diagnostic: {' | '.join(diag_notes)}]" if diag_notes else ""
+        return True, f"Connexion SSH réussie au Virtual Controller Aruba Instant ({ip}:22) en {elapsed}s avec l'utilisateur '{target_user}' !{diag_str}"
     except paramiko.AuthenticationException:
         return False, (
             f"Échec d'authentification sur le Virtual Controller ({ip}:22) : l'identifiant '{target_user}' ou le mot de passe est refusé par la borne Aruba. "
