@@ -213,7 +213,7 @@
                         <label for="admin_username" class="block text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-1.5">
                             Identifiant
                         </label>
-                        <input type="text" id="admin_username" value="admin" required placeholder="admin"
+                        <input type="text" id="admin_username" required placeholder="Identifiant" autocomplete="username"
                                class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 text-sm placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
                     </div>
                     <div>
@@ -354,8 +354,13 @@
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 card.classList.remove('scale-95');
-                const pwd = document.getElementById('admin_password');
-                if (pwd) pwd.focus();
+                const user = document.getElementById('admin_username');
+                if (user && !user.value) {
+                    user.focus();
+                } else {
+                    const pwd = document.getElementById('admin_password');
+                    if (pwd) pwd.focus();
+                }
             }, 10);
         }
 
@@ -365,6 +370,7 @@
             modal.classList.add('opacity-0');
             card.classList.add('scale-95');
             document.getElementById('adminLoginError').classList.add('hidden');
+            document.getElementById('admin_username').value = '';
             document.getElementById('admin_password').value = '';
             document.getElementById('loginStepCredentials').classList.remove('hidden');
             document.getElementById('loginStepMfa').classList.add('hidden');
