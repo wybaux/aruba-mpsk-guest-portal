@@ -418,15 +418,30 @@ class ArubaInstantClient(MockArubaClient):
 
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(
-                ip, port=22, username=self.username, password=self.password,
-                timeout=10, look_for_keys=False, allow_agent=False
-            )
+            connect_kwargs = {
+                "timeout": 10,
+                "banner_timeout": 15,
+                "auth_timeout": 15,
+                "look_for_keys": False,
+                "allow_agent": False
+            }
+            try:
+                client.connect(
+                    ip, port=22, username=self.username, password=self.password,
+                    disabled_algorithms=dict(pubkeys=[]),
+                    **connect_kwargs
+                )
+            except TypeError:
+                client.connect(
+                    ip, port=22, username=self.username, password=self.password,
+                    **connect_kwargs
+                )
             channel = client.invoke_shell()
+            channel.send("\n")
 
             # Wait dynamically for prompt ready instead of arbitrary static sleep
             prompt_buf = ""
-            while "#" not in prompt_buf and (time.time() - start_t) < 5:
+            while not any(p in prompt_buf for p in ("#", ">")) and (time.time() - start_t) < 5:
                 if channel.recv_ready():
                     prompt_buf += channel.recv(4096).decode("utf-8", errors="ignore")
                 time.sleep(0.04)
@@ -613,38 +628,74 @@ def test_vc_connection(
     # 1. Quick TCP socket test on SSH port 22
     ssh_port_open = False
     try:
-        with socket.create_connection((ip, 22), timeout=1.5):
+        with socket.create_connection((ip, 22), timeout=2.5):
             ssh_port_open = True
     except Exception:
         ssh_port_open = False
 
     if not ssh_port_open:
-        # Check if web port 4343 is responding to provide diagnostic help
+        # Check if web ports respond to provide diagnostic help
         web_open = False
-        try:
-            with socket.create_connection((ip, 4343), timeout=1.0):
-                web_open = True
-        except Exception:
-            web_open = False
+        for test_port in (4343, 443, 80):
+            try:
+                with socket.create_connection((ip, test_port), timeout=1.2):
+                    web_open = True
+                    break
+            except Exception:
+                pass
 
         if web_open:
-            return False, f"L'interface Web HTTPS répond sur {ip}:4343, mais le port SSH (22) est inaccessible. Vérifiez que l'accès SSH / CLI est activé dans la configuration de votre cluster Aruba Instant."
+            return False, (
+                f"L'interface Web HTTPS répond sur {ip}, mais le port SSH (22) est inaccessible. "
+                f"Vérifiez que l'accès SSH / CLI est activé dans la configuration de votre cluster Aruba Instant."
+            )
         else:
-            return False, f"Aucune réponse sur {ip}:22 (port SSH fermé, borne éteinte ou filtrage pare-feu)."
+            return False, (
+                f"Aucune réponse sur {ip}:22 ni 4343 depuis ce conteneur Docker. "
+                f"Causes fréquentes sur NAS (192.168.1.10) : 1) Vérifiez l'adresse IP du contrôleur, "
+                f"2) Le réseau Docker Bridge (172.x) peut être bloqué par le pare-feu du NAS ou non routé par l'AP Aruba. "
+                f"Solution recommandée : activez 'network_mode: host' dans docker-compose.yml pour que le conteneur communique directement sur votre LAN."
+            )
 
     # 2. Test SSH authentication with Paramiko
     try:
         import paramiko
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(
-            ip, port=22, username=target_user, password=target_pwd,
-            timeout=5, look_for_keys=False, allow_agent=False
+    except ImportError:
+        return False, (
+            "La bibliothèque 'paramiko' est absente du conteneur Docker. "
+            "Reconstruisez l'image Docker avec 'docker compose build --no-cache'."
         )
 
+    try:
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        connect_kwargs = {
+            "timeout": 10,
+            "banner_timeout": 15,
+            "auth_timeout": 15,
+            "look_for_keys": False,
+            "allow_agent": False
+        }
+
+        # Allow legacy host keys (ssh-rsa) for older Aruba Instant APs
+        try:
+            client.connect(
+                ip, port=22, username=target_user, password=target_pwd,
+                disabled_algorithms=dict(pubkeys=[]),
+                **connect_kwargs
+            )
+        except TypeError:
+            client.connect(
+                ip, port=22, username=target_user, password=target_pwd,
+                **connect_kwargs
+            )
+
         channel = client.invoke_shell()
+        channel.send("\n")
         prompt_buf = ""
-        while "#" not in prompt_buf and (time.time() - start_t) < 4:
+        loop_start = time.time()
+        while not any(p in prompt_buf for p in ("#", ">")) and (time.time() - loop_start) < 4:
             if channel.recv_ready():
                 prompt_buf += channel.recv(4096).decode("utf-8", errors="ignore")
             time.sleep(0.04)
