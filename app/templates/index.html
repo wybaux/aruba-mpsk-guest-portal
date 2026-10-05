@@ -899,7 +899,61 @@
                 </div>
             </div>
 
-            <!-- 3. Guest Access Duration Presets Card -->
+            <!-- 3. Contrôleur Wi-Fi Aruba (Virtual Controller / VC) & MPSK -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
+                        <i data-lucide="router" class="w-5 h-5 text-neutral-800"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-xs text-neutral-900">Contrôleur Wi-Fi Aruba (Virtual Controller / VC)</h4>
+                            {% if vc_cfg.mode == 'instant' %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span>Aruba Instant AP</span>
+                            </span>
+                            <code class="font-mono text-neutral-800 text-[11px] bg-neutral-200/60 px-1.5 py-0.5 rounded font-semibold">{{ vc_cfg.host }}</code>
+                            <span class="text-neutral-500 font-mono text-[10px]">@{{ vc_cfg.username }}</span>
+                            {% elif vc_cfg.mode == 'central' %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                                <span>Aruba Central Cloud</span>
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-600 border border-neutral-200 flex items-center gap-1">
+                                <span>Simulation (Lab / Homelab)</span>
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1 max-w-md">
+                            {% if vc_cfg.mode == 'instant' %}
+                            Synchronisation directe SSH/CLI des clés MPSK sur le Virtual Controller <code class="font-mono text-neutral-800 font-semibold">{{ vc_cfg.host }}</code> &bull; Profil WLAN : <code class="font-mono text-neutral-800">{{ vc_cfg.mpsk_profile }}</code>.
+                            {% elif vc_cfg.mode == 'central' %}
+                            Provisionnement et synchronisation des clés MPSK via l'API REST Cloud Aruba Central.
+                            {% else %}
+                            Mode simulation autonome sans contrôleur physique requis : les clés MPSK sont gérées et simulées en base locale.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <button type="button" onclick="quickTestVcConnection()" id="btnQuickTestVc"
+                            class="py-2 px-3 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-semibold shadow-3xs transition flex items-center gap-1.5"
+                            title="Tester la communication avec le contrôleur Wi-Fi">
+                        <i data-lucide="radio" class="w-3.5 h-3.5 text-neutral-500"></i>
+                        <span>Tester</span>
+                    </button>
+                    <button type="button" onclick="openVcModal()"
+                            class="py-2 px-3.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5">
+                        <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                        <span>Configurer</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. Guest Access Duration Presets Card -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
                 <div class="flex items-start gap-3.5">
                     <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
@@ -931,7 +985,7 @@
                 </div>
             </div>
 
-            <!-- 4. Graphic Customization & White-Label Branding Card -->
+            <!-- 5. Graphic Customization & White-Label Branding Card -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
                 <div class="flex items-start gap-3.5">
                     <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
@@ -959,7 +1013,7 @@
                 </div>
             </div>
 
-            <!-- 5. Technical Generation Details Display Card -->
+            <!-- 6. Technical Generation Details Display Card -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
                 <div class="flex items-start gap-3.5">
                     <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
@@ -1006,7 +1060,7 @@
                 </div>
             </div>
 
-            <!-- 6. Default Portal Language Card -->
+            <!-- 7. Default Portal Language Card -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/80">
                 <div class="flex items-start gap-3.5">
                     <div class="w-10 h-10 rounded-2xl bg-white border border-neutral-200/80 flex items-center justify-center text-neutral-900 shrink-0 shadow-3xs">
@@ -1725,6 +1779,115 @@
                     <span>Envoyer</span>
                     <i data-lucide="send" class="w-3.5 h-3.5"></i>
                 </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Aruba Virtual Controller (VC) Modal -->
+<div id="vcModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/20 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white border border-neutral-200/80 rounded-3xl p-7 max-w-lg w-full shadow-2xl relative transform transition-all scale-95 max-h-[92vh] overflow-y-auto" id="vcModalCard">
+        <button type="button" onclick="closeVcModal()" class="absolute top-5 right-5 p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-10 h-10 rounded-2xl bg-neutral-100 border border-neutral-200/70 flex items-center justify-center text-neutral-900 mb-3">
+            <i data-lucide="router" class="w-5 h-5"></i>
+        </div>
+        <h3 class="text-lg font-bold text-neutral-900 tracking-tight">Contrôleur Wi-Fi Aruba (VC)</h3>
+        <p class="text-xs text-neutral-500 mt-0.5 mb-5">Définissez l'adresse de votre Virtual Controller Instant AP et les identifiants d'administration pour la synchronisation MPSK en direct.</p>
+
+        <form onsubmit="handleVcSubmit(event)" class="space-y-4">
+            <!-- Mode Selector -->
+            <div>
+                <label for="vc_mode_select" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                    Mode de Fonctionnement Aruba
+                </label>
+                <select id="vc_mode_select" onchange="toggleVcModeFields()"
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                    <option value="instant">Aruba Instant AP (Virtual Controller physique / sur site)</option>
+                    <option value="mock">Simulation locale (Lab / Homelab sans contrôleur matériel)</option>
+                    <option value="central">Aruba Central (Plateforme Cloud)</option>
+                </select>
+            </div>
+
+            <div id="vcInstantFields" class="space-y-4">
+                <!-- Host & MPSK Profile -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="sm:col-span-2">
+                        <label for="vc_host_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                            Adresse IP ou Hôte du VC
+                        </label>
+                        <input type="text" id="vc_host_input" placeholder="ex: 192.168.1.50 ou vc.local"
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                        <span class="text-[10px] text-neutral-400 block mt-1">IP virtuelle partagée ou IP de la borne Master Instant AP (SSH port 22).</span>
+                    </div>
+                    <div>
+                        <label for="vc_mpsk_profile_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                            Profil MPSK
+                        </label>
+                        <input type="text" id="vc_mpsk_profile_input" placeholder="Guest-MPSK"
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 font-mono text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                        <span class="text-[10px] text-neutral-400 block mt-1">Nom du profil WLAN.</span>
+                    </div>
+                </div>
+
+                <!-- Username & Password -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label for="vc_username_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                            Identifiant SSH / Admin
+                        </label>
+                        <input type="text" id="vc_username_input" placeholder="ex: admin"
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                    </div>
+                    <div>
+                        <label for="vc_password_input" class="block text-[11px] font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
+                            Mot de passe Admin
+                        </label>
+                        <input type="password" id="vc_password_input" placeholder="•••••••• (Laisser vide pour conserver)"
+                               class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50/40 text-neutral-900 text-xs placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 focus:bg-white transition">
+                    </div>
+                </div>
+
+                <!-- Verify SSL Checkbox -->
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="vc_verify_ssl_input"
+                           class="rounded text-neutral-950 focus:ring-neutral-900 border-neutral-300 cursor-pointer">
+                    <label for="vc_verify_ssl_input" class="text-xs text-neutral-700 cursor-pointer select-none">
+                        Vérification stricte des certificats SSL/TLS (désactiver si certificat auto-signé sur le VC)
+                    </label>
+                </div>
+            </div>
+
+            <!-- Status banners -->
+            <p id="vcErrorMsg" class="hidden text-xs text-rose-600 p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-1.5">
+                <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-rose-600 mt-0.5"></i>
+                <span id="vcErrorText">Erreur</span>
+            </p>
+            <p id="vcSuccessMsg" class="hidden text-xs text-emerald-700 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-1.5">
+                <i data-lucide="check-circle-2" class="w-4 h-4 shrink-0 text-emerald-600 mt-0.5"></i>
+                <span id="vcSuccessText">Connexion réussie !</span>
+            </p>
+
+            <!-- Buttons -->
+            <div class="flex flex-col sm:flex-row gap-2 pt-3 border-t border-neutral-100">
+                <button type="button" onclick="testVcFromModal()" id="btnTestVcModal"
+                        class="py-2.5 px-3.5 rounded-xl border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-800 text-xs font-semibold shadow-3xs transition flex items-center justify-center gap-1.5">
+                    <i data-lucide="radio" class="w-3.5 h-3.5 text-neutral-500"></i>
+                    <span id="btnTestVcModalText">Tester la connexion</span>
+                </button>
+                <div class="flex-1 flex gap-2">
+                    <button type="button" onclick="closeVcModal()"
+                            class="flex-1 py-2.5 px-4 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-semibold transition">
+                        Annuler
+                    </button>
+                    <button type="submit" id="btnSubmitVc"
+                            class="flex-1 py-2.5 px-4 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5">
+                        <span>Enregistrer</span>
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -3114,6 +3277,202 @@
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<span>Envoyer</span><i data-lucide="send" class="w-3.5 h-3.5"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    // ==========================================
+    // Aruba Virtual Controller (VC) Modal & Settings
+    // ==========================================
+    function toggleVcModeFields() {
+        const mode = document.getElementById('vc_mode_select').value;
+        const instantFields = document.getElementById('vcInstantFields');
+        if (mode === 'instant') {
+            instantFields.classList.remove('hidden');
+        } else {
+            instantFields.classList.add('hidden');
+        }
+    }
+
+    async function openVcModal() {
+        const modal = document.getElementById('vcModal');
+        const card = document.getElementById('vcModalCard');
+        const errorMsg = document.getElementById('vcErrorMsg');
+        const successMsg = document.getElementById('vcSuccessMsg');
+        if (errorMsg) errorMsg.classList.add('hidden');
+        if (successMsg) successMsg.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/admin/settings', {
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('vc_mode_select').value = data.aruba_mode || 'instant';
+                document.getElementById('vc_host_input').value = data.aruba_instant_host || '';
+                document.getElementById('vc_username_input').value = data.aruba_instant_username || 'admin';
+                document.getElementById('vc_password_input').value = '';
+                if (data.has_vc_password) {
+                    document.getElementById('vc_password_input').placeholder = '•••••••• (Laisser vide pour conserver)';
+                } else {
+                    document.getElementById('vc_password_input').placeholder = 'Mot de passe VC';
+                }
+                document.getElementById('vc_mpsk_profile_input').value = data.aruba_mpsk_profile || 'Guest-MPSK';
+                document.getElementById('vc_verify_ssl_input').checked = !!data.aruba_instant_verify_ssl;
+                toggleVcModeFields();
+            }
+        } catch (e) {
+            console.warn('Could not prefetch VC settings:', e);
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            card.classList.remove('scale-95');
+            document.getElementById('vc_host_input').focus();
+        }, 10);
+    }
+
+    function closeVcModal() {
+        const modal = document.getElementById('vcModal');
+        const card = document.getElementById('vcModalCard');
+        modal.classList.add('opacity-0');
+        card.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    async function testVcFromModal() {
+        const mode = document.getElementById('vc_mode_select').value;
+        const host = document.getElementById('vc_host_input').value.trim();
+        const username = document.getElementById('vc_username_input').value.trim();
+        const password = document.getElementById('vc_password_input').value;
+        const verifySsl = document.getElementById('vc_verify_ssl_input').checked;
+
+        const btn = document.getElementById('btnTestVcModal');
+        const btnText = document.getElementById('btnTestVcModalText');
+        const errorMsg = document.getElementById('vcErrorMsg');
+        const errorText = document.getElementById('vcErrorText');
+        const successMsg = document.getElementById('vcSuccessMsg');
+        const successText = document.getElementById('vcSuccessText');
+
+        if (errorMsg) errorMsg.classList.add('hidden');
+        if (successMsg) successMsg.classList.add('hidden');
+
+        btn.disabled = true;
+        btnText.textContent = 'Test en cours...';
+
+        try {
+            const payload = {
+                mode: mode,
+                host: host,
+                username: username,
+                verify_ssl: verifySsl
+            };
+            if (password) {
+                payload.password = password;
+            }
+
+            const res = await fetch('/api/admin/settings/test-vc', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                successText.textContent = data.message || 'Connexion réussie avec le Virtual Controller !';
+                successMsg.classList.remove('hidden');
+            } else {
+                errorText.textContent = data.detail || 'Échec du test de communication avec le VC';
+                errorMsg.classList.remove('hidden');
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur réseau ou communication serveur';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btnText.textContent = 'Tester la connexion';
+            lucide.createIcons();
+        }
+    }
+
+    async function quickTestVcConnection() {
+        const btn = document.getElementById('btnQuickTestVc');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="animate-spin inline-block w-3.5 h-3.5 border-2 border-neutral-600 border-t-transparent rounded-full"></span><span>Test...</span>';
+
+        try {
+            const res = await fetch('/api/admin/settings/test-vc', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(data.message || 'Contrôleur Wi-Fi Aruba accessible et opérationnel !', 'success');
+            } else {
+                showToast(data.detail || 'Échec du test de connexion au VC', 'error');
+            }
+        } catch (err) {
+            showToast('Erreur de communication lors du test VC', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            lucide.createIcons();
+        }
+    }
+
+    async function handleVcSubmit(e) {
+        e.preventDefault();
+        const mode = document.getElementById('vc_mode_select').value;
+        const host = document.getElementById('vc_host_input').value.trim();
+        const username = document.getElementById('vc_username_input').value.trim();
+        const password = document.getElementById('vc_password_input').value;
+        const mpskProfile = document.getElementById('vc_mpsk_profile_input').value.trim();
+        const verifySsl = document.getElementById('vc_verify_ssl_input').checked;
+
+        const btn = document.getElementById('btnSubmitVc');
+        const errorMsg = document.getElementById('vcErrorMsg');
+        const errorText = document.getElementById('vcErrorText');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span>Enregistrement...</span>';
+        if (errorMsg) errorMsg.classList.add('hidden');
+
+        const payload = {
+            aruba_mode: mode,
+            aruba_instant_host: host,
+            aruba_instant_username: username,
+            aruba_mpsk_profile: mpskProfile,
+            aruba_instant_verify_ssl: verifySsl
+        };
+        if (password) {
+            payload.aruba_instant_password = password;
+        }
+
+        try {
+            const res = await fetch('/api/admin/settings', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                closeVcModal();
+                showToast(data.message || 'Configuration Aruba VC enregistrée !');
+                window.location.hash = '#users';
+                window.location.reload();
+            } else {
+                errorText.textContent = data.detail || 'Erreur lors de l\'enregistrement';
+                errorMsg.classList.remove('hidden');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            errorText.textContent = 'Erreur réseau ou communication serveur';
+            errorMsg.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span>Enregistrer</span><i data-lucide="check" class="w-3.5 h-3.5"></i>';
             lucide.createIcons();
         }
     }

@@ -24,7 +24,7 @@ from app.models import (
     SendVoucherEmailRequest
 )
 from app.profile_manager import profile_manager, AccessProfileInfo
-from app.aruba_client import get_aruba_client
+from app.aruba_client import get_aruba_client, get_aruba_config, test_vc_connection
 from app.scheduler import CleanupScheduler
 from app.qr_generator import generate_qr_code_bytes
 from app.notification_service import notification_service
@@ -54,6 +54,14 @@ cleanup_scheduler = CleanupScheduler(
     aruba_client=aruba_client,
     interval_seconds=settings.CLEANUP_CHECK_INTERVAL
 )
+
+def reload_active_aruba_client():
+    """Hot-reload in-memory network client when VC credentials or integration mode change."""
+    global aruba_client, cleanup_scheduler
+    aruba_client = get_aruba_client()
+    cleanup_scheduler.aruba_client = aruba_client
+    logger.info("Active Aruba Client reloaded dynamically.")
+    return aruba_client
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -118,6 +126,9 @@ async def home_dashboard(request: Request):
     default_language = db.get_setting("default_language", getattr(settings, "DEFAULT_LANGUAGE", "fr"))
     detected_language = detect_client_language(request.headers.get("accept-language"), default_language)
     
+    vc_cfg = get_aruba_config()
+    vc_cfg["has_password"] = bool(vc_cfg.get("password"))
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -130,7 +141,8 @@ async def home_dashboard(request: Request):
             "banned_macs": banned_macs,
             "profiles": profiles,
             "default_profile": default_profile,
-            "aruba_mode": settings.ARUBA_MODE,
+            "aruba_mode": vc_cfg["mode"],
+            "vc_cfg": vc_cfg,
             "require_otp": require_otp,
             "require_guest_email": require_guest_email,
             "allowed_sponsor_domains": allowed_sponsor_domains,
@@ -731,7 +743,7 @@ async def health_check():
         "status": "healthy",
         "uptime_seconds": round(uptime, 1),
         "app_title": settings.APP_TITLE,
-        "aruba_mode": settings.ARUBA_MODE,
+        "aruba_mode": db.get_setting("aruba_mode", settings.ARUBA_MODE),
         "database": {
             "status": "connected",
             "file": db_metrics["db_file"],
@@ -970,6 +982,12 @@ class UpdateSettingsPayload(BaseModel):
     smtp_from: Optional[str] = None
     smtp_tls: Optional[bool] = None
     duration_presets: Optional[List[int]] = None
+    aruba_mode: Optional[str] = None
+    aruba_instant_host: Optional[str] = None
+    aruba_instant_username: Optional[str] = None
+    aruba_instant_password: Optional[str] = None
+    aruba_instant_verify_ssl: Optional[bool] = None
+    aruba_mpsk_profile: Optional[str] = None
 
 class ToggleOtpPayload(BaseModel):
     enabled: bool
@@ -986,13 +1004,22 @@ class SetDefaultLangPayload(BaseModel):
 class TestEmailPayload(BaseModel):
     recipient_email: str
 
+class TestVcPayload(BaseModel):
+    mode: Optional[str] = None
+    aruba_mode: Optional[str] = None
+    host: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    verify_ssl: Optional[bool] = None
+
 class UpdateDurationsPayload(BaseModel):
     duration_presets: List[int]
 
 @app.get("/api/admin/settings")
 async def api_admin_get_settings():
-    """Retrieve active system and SMTP configuration."""
+    """Retrieve active system, SMTP and Aruba Virtual Controller configuration."""
     cfg = notification_service.get_smtp_config()
+    vc_cfg = get_aruba_config()
     return {
         "require_otp_verification": bool(db.get_setting("require_otp_verification", settings.REQUIRE_OTP_VERIFICATION)),
         "require_guest_email": bool(db.get_setting("require_guest_email", getattr(settings, "REQUIRE_GUEST_EMAIL", False))),
@@ -1005,12 +1032,18 @@ async def api_admin_get_settings():
         "smtp_from": cfg["from_email"] or "",
         "smtp_tls": cfg["tls"],
         "has_smtp_password": bool(cfg["password"]),
-        "duration_presets": db.get_duration_presets()
+        "duration_presets": db.get_duration_presets(),
+        "aruba_mode": vc_cfg["mode"],
+        "aruba_instant_host": vc_cfg["host"],
+        "aruba_instant_username": vc_cfg["username"],
+        "aruba_instant_verify_ssl": vc_cfg["verify_ssl"],
+        "aruba_mpsk_profile": vc_cfg["mpsk_profile"],
+        "has_vc_password": bool(vc_cfg["password"])
     }
 
 @app.post("/api/admin/settings")
 async def api_admin_update_settings(payload: UpdateSettingsPayload, request: Request):
-    """Save or update system and SMTP settings in SQLite."""
+    """Save or update system, SMTP and Aruba VC settings in SQLite."""
     current = get_current_user_from_request(request)
     actor = current["username"] if current else "admin"
 
@@ -1046,7 +1079,33 @@ async def api_admin_update_settings(payload: UpdateSettingsPayload, request: Req
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    db.log_audit_event("SETTINGS_UPDATED", actor=actor, details="Updated system/SMTP settings")
+    # Aruba Virtual Controller settings
+    vc_updated = False
+    if payload.aruba_mode is not None:
+        clean_mode = payload.aruba_mode.strip().lower()
+        if clean_mode in ("instant", "mock", "central"):
+            db.set_setting("aruba_mode", clean_mode)
+            vc_updated = True
+    if payload.aruba_instant_host is not None:
+        db.set_setting("aruba_instant_host", payload.aruba_instant_host.strip())
+        vc_updated = True
+    if payload.aruba_instant_username is not None:
+        db.set_setting("aruba_instant_username", payload.aruba_instant_username.strip())
+        vc_updated = True
+    if payload.aruba_instant_password is not None and payload.aruba_instant_password != "":
+        db.set_setting("aruba_instant_password", payload.aruba_instant_password)
+        vc_updated = True
+    if payload.aruba_instant_verify_ssl is not None:
+        db.set_setting("aruba_instant_verify_ssl", payload.aruba_instant_verify_ssl)
+        vc_updated = True
+    if payload.aruba_mpsk_profile is not None:
+        db.set_setting("aruba_mpsk_profile", payload.aruba_mpsk_profile.strip())
+        vc_updated = True
+
+    if vc_updated:
+        reload_active_aruba_client()
+
+    db.log_audit_event("SETTINGS_UPDATED", actor=actor, details="Updated system/SMTP/VC settings")
     return {"success": True, "message": "Paramètres mis à jour avec succès !"}
 
 @app.post("/api/admin/settings/toggle-otp")
@@ -1130,6 +1189,21 @@ async def api_admin_test_email(payload: TestEmailPayload, request: Request):
     if not payload.recipient_email or "@" not in payload.recipient_email:
         raise HTTPException(status_code=400, detail="Veuillez renseigner une adresse email destinataire valide.")
     success, message = notification_service.test_smtp_connection(payload.recipient_email.strip())
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"success": True, "message": message}
+
+@app.post("/api/admin/settings/test-vc")
+async def api_admin_test_vc(payload: TestVcPayload, request: Request):
+    """Test Virtual Controller connectivity and credentials."""
+    effective_mode = payload.mode or payload.aruba_mode or db.get_setting("aruba_mode", settings.ARUBA_MODE)
+    success, message = test_vc_connection(
+        host=payload.host,
+        username=payload.username,
+        password=payload.password,
+        verify_ssl=payload.verify_ssl if payload.verify_ssl is not None else False,
+        mode=effective_mode
+    )
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"success": True, "message": message}

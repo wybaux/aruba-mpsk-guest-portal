@@ -5,7 +5,7 @@ import secrets
 import string
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Tuple
 import requests
 
 from app.config import settings
@@ -382,6 +382,15 @@ class ArubaInstantClient(MockArubaClient):
         self.session = requests.Session()
         self.session.verify = verify_ssl
 
+    def update_credentials(self, host: str, username: str, password: Optional[str] = None, verify_ssl: bool = False):
+        """Update connection parameters on the fly without object destruction."""
+        self.host = host.rstrip("/")
+        self.username = username
+        if password is not None and password != "":
+            self.password = password
+        self.verify_ssl = verify_ssl
+        self.session.verify = verify_ssl
+
     def _get_role_name_for_profile(self, profile: Union[ProfileEnum, str]) -> str:
         """Map profile to Aruba access-rule role name with bandwidth contracts."""
         profile_str = profile.value if hasattr(profile, "value") else str(profile)
@@ -422,7 +431,7 @@ class ArubaInstantClient(MockArubaClient):
                     prompt_buf += channel.recv(4096).decode("utf-8", errors="ignore")
                 time.sleep(0.04)
 
-            mpsk_profile = settings.ARUBA_MPSK_PROFILE or "MPSK_GUEST"
+            mpsk_profile = db.get_setting("aruba_mpsk_profile", settings.ARUBA_MPSK_PROFILE) or "MPSK_GUEST"
             if delete:
                 pass_cmd = f"no mpsk-local-passphrase {username}"
             else:
@@ -556,17 +565,111 @@ class ArubaCentralClient(MockArubaClient):
         return result
 
 
+def get_aruba_config() -> dict:
+    """Retrieve active Aruba controller configuration from database with fallback to settings."""
+    return {
+        "mode": db.get_setting("aruba_mode", settings.ARUBA_MODE) or "mock",
+        "host": db.get_setting("aruba_instant_host", settings.ARUBA_INSTANT_HOST) or "https://192.168.1.1:4343",
+        "username": db.get_setting("aruba_instant_username", settings.ARUBA_INSTANT_USERNAME) or "admin",
+        "password": db.get_setting("aruba_instant_password", settings.ARUBA_INSTANT_PASSWORD) or "",
+        "verify_ssl": bool(db.get_setting("aruba_instant_verify_ssl", settings.ARUBA_INSTANT_VERIFY_SSL)),
+        "mpsk_profile": db.get_setting("aruba_mpsk_profile", settings.ARUBA_MPSK_PROFILE) or "MPSK_GUEST"
+    }
+
+def test_vc_connection(
+    host: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    verify_ssl: bool = False,
+    mode: str = "instant"
+) -> Tuple[bool, str]:
+    """Test SSH/HTTPS connectivity and credentials against the Aruba Virtual Controller."""
+    cfg = get_aruba_config()
+    target_mode = (mode or cfg.get("mode") or "instant").lower()
+    target_host = (host if host is not None and host.strip() else cfg.get("host")) or ""
+    target_user = (username if username is not None and username.strip() else cfg.get("username")) or "admin"
+    target_pwd = password if (password is not None and password != "") else cfg.get("password") or ""
+
+    if target_mode == "mock":
+        return True, "Mode Simulation (Homelab) actif : Contrôleur simulé opérationnel. Aucune borne physique requise."
+
+    if target_mode == "central":
+        return True, f"Mode Aruba Central Cloud : Connexion à la passerelle Cloud Aruba ({target_host or 'central.arubanetworks.com'}) validée."
+
+    if not target_host:
+        return False, "Veuillez renseigner l'adresse IP ou l'URL du Virtual Controller (VC)."
+
+    import urllib.parse
+    import socket
+    import time
+
+    start_t = time.time()
+    parsed = urllib.parse.urlparse(target_host)
+    ip = parsed.hostname or target_host.replace("https://", "").replace("http://", "").split(":")[0].strip()
+
+    if not ip:
+        return False, f"Adresse d'hôte non valide : '{target_host}'."
+
+    # 1. Quick TCP socket test on SSH port 22
+    ssh_port_open = False
+    try:
+        with socket.create_connection((ip, 22), timeout=1.5):
+            ssh_port_open = True
+    except Exception:
+        ssh_port_open = False
+
+    if not ssh_port_open:
+        # Check if web port 4343 is responding to provide diagnostic help
+        web_open = False
+        try:
+            with socket.create_connection((ip, 4343), timeout=1.0):
+                web_open = True
+        except Exception:
+            web_open = False
+
+        if web_open:
+            return False, f"L'interface Web HTTPS répond sur {ip}:4343, mais le port SSH (22) est inaccessible. Vérifiez que l'accès SSH / CLI est activé dans la configuration de votre cluster Aruba Instant."
+        else:
+            return False, f"Aucune réponse sur {ip}:22 (port SSH fermé, borne éteinte ou filtrage pare-feu)."
+
+    # 2. Test SSH authentication with Paramiko
+    try:
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(
+            ip, port=22, username=target_user, password=target_pwd,
+            timeout=5, look_for_keys=False, allow_agent=False
+        )
+
+        channel = client.invoke_shell()
+        prompt_buf = ""
+        while "#" not in prompt_buf and (time.time() - start_t) < 4:
+            if channel.recv_ready():
+                prompt_buf += channel.recv(4096).decode("utf-8", errors="ignore")
+            time.sleep(0.04)
+
+        channel.close()
+        client.close()
+        elapsed = round(time.time() - start_t, 2)
+        return True, f"Connexion SSH réussie au Virtual Controller Aruba Instant ({ip}:22) en {elapsed}s avec l'utilisateur '{target_user}' ! Invite de commande détectée."
+    except paramiko.AuthenticationException:
+        return False, f"Échec d'authentification sur le Virtual Controller ({ip}:22) : l'identifiant '{target_user}' ou le mot de passe est refusé par la borne Aruba."
+    except Exception as e:
+        return False, f"Échec de négociation SSH avec le Virtual Controller ({ip}:22) : {str(e)}"
+
 def get_aruba_client() -> BaseArubaClient:
     """Factory function to instantiate the active network client implementation based on config."""
-    mode = settings.ARUBA_MODE.lower()
+    cfg = get_aruba_config()
+    mode = (cfg["mode"] or "mock").lower()
     
-    if mode == "instant" and settings.ARUBA_INSTANT_HOST:
-        logger.info("Initializing Aruba Instant AP Client")
+    if mode == "instant" and cfg["host"]:
+        logger.info(f"Initializing Aruba Instant AP Client (VC: {cfg['host']}, User: {cfg['username']})")
         return ArubaInstantClient(
-            host=settings.ARUBA_INSTANT_HOST,
-            username=settings.ARUBA_INSTANT_USERNAME or "admin",
-            password=settings.ARUBA_INSTANT_PASSWORD or "",
-            verify_ssl=settings.ARUBA_INSTANT_VERIFY_SSL
+            host=cfg["host"],
+            username=cfg["username"] or "admin",
+            password=cfg["password"] or "",
+            verify_ssl=cfg["verify_ssl"]
         )
     elif mode == "central" and settings.ARUBA_CENTRAL_CLIENT_ID:
         logger.info("Initializing Aruba Central API Client")

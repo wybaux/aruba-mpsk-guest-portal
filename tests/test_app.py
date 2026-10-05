@@ -830,6 +830,98 @@ def test_guest_email_requirement():
     assert toggle_off_resp.json()["require_guest_email"] is False
     assert client.get("/api/admin/settings").json()["require_guest_email"] is False
 
+def test_aruba_vc_settings_and_test_connection():
+    from unittest.mock import patch, MagicMock
+
+    # 1. Verify GET /api/admin/settings contains VC configuration fields
+    settings_resp = client.get("/api/admin/settings")
+    assert settings_resp.status_code == 200
+    data = settings_resp.json()
+    assert "aruba_mode" in data
+    assert "aruba_instant_host" in data
+    assert "aruba_instant_username" in data
+    assert "aruba_instant_verify_ssl" in data
+    assert "aruba_mpsk_profile" in data
+    assert "has_vc_password" in data
+
+    # 2. Update VC settings via POST /api/admin/settings
+    update_payload = {
+        "aruba_mode": "instant",
+        "aruba_instant_host": "192.168.10.100",
+        "aruba_instant_username": "aruba_admin",
+        "aruba_instant_password": "SuperSecretArubaPassword!",
+        "aruba_instant_verify_ssl": False,
+        "aruba_mpsk_profile": "Corp-Guests"
+    }
+    set_resp = client.post("/api/admin/settings", json=update_payload)
+    assert set_resp.status_code == 200
+    assert set_resp.json()["success"] is True
+
+    # 3. Check GET returns updated values and password is masked
+    resp_updated = client.get("/api/admin/settings")
+    assert resp_updated.status_code == 200
+    u_data = resp_updated.json()
+    assert u_data["aruba_mode"] == "instant"
+    assert u_data["aruba_instant_host"] == "192.168.10.100"
+    assert u_data["aruba_instant_username"] == "aruba_admin"
+    assert u_data["aruba_instant_verify_ssl"] is False
+    assert u_data["aruba_mpsk_profile"] == "Corp-Guests"
+    assert u_data["has_vc_password"] is True
+    assert "aruba_instant_password" not in u_data
+
+    # 4. Update without password -> preserves existing password
+    update_payload2 = {
+        "aruba_instant_host": "192.168.10.101"
+    }
+    set_resp2 = client.post("/api/admin/settings", json=update_payload2)
+    assert set_resp2.status_code == 200
+    resp_updated2 = client.get("/api/admin/settings")
+    assert resp_updated2.json()["aruba_instant_host"] == "192.168.10.101"
+    assert resp_updated2.json()["has_vc_password"] is True
+
+    # 5. Test test-vc endpoint in mock mode
+    mock_test = client.post("/api/admin/settings/test-vc", json={"mode": "mock"})
+    assert mock_test.status_code == 200
+    assert mock_test.json()["success"] is True
+    assert "Simulation" in mock_test.json()["message"]
+
+    # 6. Test test-vc endpoint in central mode
+    central_test = client.post("/api/admin/settings/test-vc", json={"mode": "central"})
+    assert central_test.status_code == 200
+    assert central_test.json()["success"] is True
+    assert "Central" in central_test.json()["message"]
+
+    # 7. Test test-vc endpoint in instant mode with simulated SSH success
+    with patch("socket.create_connection") as mock_conn, \
+         patch("paramiko.SSHClient") as mock_ssh_cls:
+        mock_conn.return_value.__enter__.return_value = MagicMock()
+        mock_ssh = MagicMock()
+        mock_ssh_cls.return_value = mock_ssh
+        mock_chan = MagicMock()
+        mock_chan.recv.return_value = b"Instant-AP# "
+        mock_ssh.invoke_shell.return_value = mock_chan
+
+        instant_test = client.post("/api/admin/settings/test-vc", json={
+            "mode": "instant",
+            "host": "192.168.10.101",
+            "username": "aruba_admin",
+            "password": "SuperSecretArubaPassword!"
+        })
+        assert instant_test.status_code == 200
+        assert instant_test.json()["success"] is True
+        assert "Virtual Controller" in instant_test.json()["message"]
+
+    # 8. Check home page renders VC info card
+    home_resp = client.get("/")
+    assert home_resp.status_code == 200
+    assert "192.168.10.101" in home_resp.text
+    assert "Corp-Guests" in home_resp.text
+
+    # 9. Clean up and restore mock mode
+    reset_resp = client.post("/api/admin/settings", json={"aruba_mode": "mock"})
+    assert reset_resp.status_code == 200
+
+
 
 
 
