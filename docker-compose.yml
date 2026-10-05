@@ -10,6 +10,8 @@ services:
     env_file:
       - .env
     volumes:
+      - ./app:/app/app
+      - ./wifi_guest.db:/app/wifi_guest.db
       - ./active_passes.json:/app/active_passes.json
     environment:
       - APP_HOST=0.0.0.0
