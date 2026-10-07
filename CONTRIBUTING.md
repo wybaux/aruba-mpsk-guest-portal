@@ -1,6 +1,6 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to **Enterprise & Homelab Guest Wi-Fi (Aruba Instant & Central MPSK)**! This guide will help you participate effectively in development, documentation improvements, and bug reporting.
+Thank you for your interest in contributing to **Enterprise & Homelab Guest Wi-Fi (Aruba Instant MPSK)**! This guide will help you participate effectively in development, documentation improvements, and bug reporting.
 
 ---
 

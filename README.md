@@ -307,6 +307,13 @@ Contributions, issues, and feature requests are welcome! Check **[CONTRIBUTING.m
 
 ---
 
+## 👥 Authors & Contributors
+
+* **[wybaux](https://github.com/wybaux)** — Creator & Lead Maintainer
+* **[Antigravity](https://deepmind.google/)** (Google DeepMind) — AI Pair Programmer & Contributor (Architecture, Aruba Instant SSH driver, RBAC/MPSK security & documentation)
+
+---
+
 ## 📄 License
 
 This project is licensed under the **MIT License**. See **[LICENSE](./LICENSE)** for details.
