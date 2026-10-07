@@ -10,22 +10,22 @@
         <button type="button" onclick="switchTab('guest')" id="tabBtnGuest"
                 class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-white text-neutral-900 shadow-2xs">
             <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
-            <span>Nouvel Invité</span>
+            <span data-i18n="tab_new_guest">Nouvel Invité</span>
         </button>
         <button type="button" onclick="switchTab('admin')" id="tabBtnAdmin"
                 class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5">
             <i data-lucide="activity" class="w-3.5 h-3.5"></i>
-            <span>Tableau de bord ({{ active_passes|length }})</span>
+            <span><span data-i18n="tab_dashboard">Tableau de bord</span> ({{ active_passes|length }})</span>
         </button>
         <button type="button" onclick="switchTab('profiles')" id="tabBtnProfiles"
                 class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5">
             <i data-lucide="gauge" class="w-3.5 h-3.5"></i>
-            <span>Profils &amp; Débits</span>
+            <span data-i18n="tab_profiles">Profils &amp; Débits</span>
         </button>
         <button type="button" onclick="switchTab('users')" id="tabBtnUsers"
                 class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition flex items-center justify-center gap-1.5">
             <i data-lucide="settings" class="w-3.5 h-3.5"></i>
-            <span>Administration &amp; Paramètres</span>
+            <span data-i18n="tab_admin">Administration &amp; Paramètres</span>
         </button>
     </div>
 
@@ -646,7 +646,7 @@
             <div>
                 <h2 class="text-base font-bold text-neutral-900 flex items-center gap-2">
                     <i data-lucide="sliders" class="w-5 h-5 text-neutral-700"></i>
-                    <span>Profils d'Accès &amp; Contrôle de Bande Passante</span>
+                    <span data-i18n="admin_profiles_title">Profils d'Accès &amp; Contrôle de Bande Passante</span>
                 </h2>
                 <p class="text-xs text-neutral-500 mt-1">
                     Chaque profil définit la limite de vitesse (Mbps) et le VLAN appliqués en temps réel par l'AP Aruba.
@@ -655,7 +655,7 @@
             <button type="button" onclick="openProfileModal()"
                     class="px-4 py-2.5 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-2">
                 <i data-lucide="plus" class="w-4 h-4"></i>
-                <span>Nouveau Profil</span>
+                <span data-i18n="btn_new_profile">Nouveau Profil</span>
             </button>
         </div>
 
@@ -745,7 +745,7 @@
             <div>
                 <h2 class="text-base font-bold text-neutral-900 flex items-center gap-2">
                     <i data-lucide="settings" class="w-5 h-5 text-neutral-700"></i>
-                    <span>Administration &amp; Paramètres Système</span>
+                    <span data-i18n="admin_system_title">Administration &amp; Paramètres Système</span>
                 </h2>
                 <p class="text-xs text-neutral-500 mt-1">
                     Configuration du Contrôleur Wi-Fi Aruba (VC), SMTP, politiques d'accès, branding et comptes d'administration.
@@ -754,7 +754,7 @@
             <button type="button" onclick="openCreateUserModal()"
                     class="px-4 py-2.5 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-2">
                 <i data-lucide="user-plus" class="w-4 h-4"></i>
-                <span>Nouvel Utilisateur</span>
+                <span data-i18n="btn_new_user">Nouvel Utilisateur</span>
             </button>
         </div>
 
