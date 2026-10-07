@@ -5,6 +5,8 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Docker Ready](https://img.shields.io/badge/docker-compose-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
 [![Tests: Pytest](https://img.shields.io/badge/tests-19%20passed%20(100%25)-brightgreen.svg)](tests/test_app.py)
+[![Contributors](https://img.shields.io/badge/contributors-2-blueviolet.svg)](#-authors--contributors)
+[![AI Pair Programmer](https://img.shields.io/badge/AI%20Pair%20Programmer-Antigravity-4285F4.svg?logo=google&logoColor=white)](https://deepmind.google/)
 [![Design: Minimalist White](https://img.shields.io/badge/design-minimalist%20white-black.svg)]()
 
 A modern, secure, and production-ready guest Wi-Fi portal featuring dynamic **Multiple Pre-Shared Key (MPSK)** provisioning, hardware per-user bandwidth rate-limiting, and instant camera **QR Code** onboarding for **Aruba Instant APs (IAP / Virtual Controller)** and Homelab environments.
@@ -309,8 +311,11 @@ Contributions, issues, and feature requests are welcome! Check **[CONTRIBUTING.m
 
 ## 👥 Authors & Contributors
 
-* **[wybaux](https://github.com/wybaux)** — Creator & Lead Maintainer
-* **[Antigravity](https://deepmind.google/)** (Google DeepMind) — AI Pair Programmer & Contributor (Architecture, Aruba Instant SSH driver, RBAC/MPSK security & documentation)
+[![Contributors](https://img.shields.io/badge/contributors-wybaux%20%7C%20Antigravity-blueviolet.svg)](#-authors--contributors)
+[![Pair Programming](https://img.shields.io/badge/pair%20programming-human%20%2B%20AI-00bcd4.svg)](#-authors--contributors)
+
+* **[wybaux](https://github.com/wybaux)** [![Lead Maintainer](https://img.shields.io/badge/maintainer-wybaux-0969da.svg?logo=github&logoColor=white)](https://github.com/wybaux) — Creator & Lead Maintainer
+* **[Antigravity](https://deepmind.google/)** (Google DeepMind) [![AI Pair Programmer](https://img.shields.io/badge/AI%20Pair%20Programmer-Google%20DeepMind-4285F4.svg?logo=google&logoColor=white)](https://deepmind.google/) — Contributor & Core Engineer (Architecture, Aruba Instant SSH driver, RBAC/MPSK security & documentation)
 
 ---
 
