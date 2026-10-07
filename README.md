@@ -7,97 +7,98 @@
 [![Tests: Pytest](https://img.shields.io/badge/tests-19%20passed%20(100%25)-brightgreen.svg)](tests/test_app.py)
 [![Design: Minimalist White](https://img.shields.io/badge/design-minimalist%20white-black.svg)]()
 
-Portail invité moderne, sécurisé et haute performance avec provisionnement dynamique de **clés uniques par utilisateur (MPSK - Multiple Pre-Shared Key)**, limitation matérielle des débits par profil et connexion instantanée par **QR Code** pour les bornes **Aruba Instant AP (IAP / Virtual Controller)** et environnements Homelab.
+A modern, secure, and production-ready guest Wi-Fi portal featuring dynamic **Multiple Pre-Shared Key (MPSK)** provisioning, hardware per-user bandwidth rate-limiting, and instant camera **QR Code** onboarding for **Aruba Instant APs (IAP / Virtual Controller)** and Homelab environments.
 
 ---
 
-## 📸 Aperçu de l'Interface
+## 📸 Interface Showcase
 
-| 1. Portail d'accueil Visiteur | 2. Pass Wi-Fi & QR Code Universel |
+| 1. Guest Welcome Portal | 2. Wi-Fi Pass & Universal QR Code |
 | :---: | :---: |
-| ![Portail Visiteur](docs/screenshots/01_guest_portal.png) | ![Pass et QR Code](docs/screenshots/02_voucher_pass.png) |
-| *Sélection de profil (Standard, VIP, etc.), charte d'utilisation et formulaire épuré.* | *QR Code ZXing scannable par caméra native, identifiants et décompte d'expiration.* |
+| ![Guest Welcome Portal](docs/screenshots/01_guest_portal.png) | ![Wi-Fi Pass Voucher](docs/screenshots/02_voucher_pass.png) |
+| *Profile selection (Standard, VIP, etc.), acceptable use charter, and clean form.* | *Instant ZXing QR Code scannable by native iOS/Android cameras with live expiration counter.* |
 
-| 3. Console d'Administration & Supervision | 4. Gestion des Profils & Contrats de Débit |
+| 3. Admin Console & Live Monitoring | 4. Bandwidth Profiles & Shaper Contracts |
 | :---: | :---: |
-| ![Supervision Admin](docs/screenshots/03_admin_monitoring.png) | ![Gestion des Profils](docs/screenshots/04_profile_management.png) |
-| *Suivi des clients en direct, bande passante consommée, déconnexion & bannissement MAC.* | *Configuration des vitesses (Up/Down), codes d'accès et synchronisation InstantOS.* |
+| ![Admin Monitoring](docs/screenshots/03_admin_monitoring.png) | ![Profile Management](docs/screenshots/04_profile_management.png) |
+| *Real-time client monitoring, RSSI signal, bandwidth usage, 1-click kick & MAC blacklist.* | *Upload/Download speed tiers, protection passcodes, and InstantOS role mapping.* |
 
 ---
 
-## 🌟 Points Forts & Fonctionnalités
+## 🌟 Key Features
 
-* 🔑 **Passphrase Unique par Invité (MPSK)** : chaque visiteur génère sa propre clé Wi-Fi temporaire (WPA2/WPA3-Personal). Finis les mots de passe statiques partagés ou affichés sur des post-its.
-* 📱 **Connexion Instantanée par QR Code (ZXing)** : scannable nativement par les appareils photo iOS et Android sans aucune application tierce (`WIFI:T:WPA;S:...;P:...;;`).
-* ⚡ **Limitation Matérielle des Débits (Aruba ASIC Shaper)** : les rôles Aruba appliquent des quotas stricts et équitables par utilisateur (`bandwidth-limit peruser`), gérés directement par le matériel de la borne.
-* 🔒 **Profils d'Accès Multi-Niveaux** :
-  * **Standard (Gratuit / Visiteur)** : accès direct sans friction pour les visiteurs réguliers.
-  * **VIP / Haut Débit** : débit prioritaire déverrouillé par mot de passe ou code d'accès administrateur.
-  * **Personnalisable** : ajout/suppression dynamique de profils depuis l'interface d'administration.
-* 🛡️ **Sécurité Entreprise & RBAC avec 2FA TOTP** :
-  * Rôles granulaires : **Administrateur** (droits totaux), **Opérateur** (création/gestion de pass) et **Auditeur** (consultation seule).
-  * Double facteur d'authentification (2FA) via TOTP compatible Google Authenticator, Microsoft Authenticator, Apple Passwords et 1Password.
-* 📡 **Supervision des Stations en Temps Réel & Bannissement MAC** :
-  * Tableau de bord temps réel des clients connectés (Nom AP, niveau de signal RSSI dBm, trafic RX/TX, durée de connexion).
-  * Déconnexion forcée (*kick*) en 1 clic et liste noire matérielle permanente d'adresses MAC.
-* 🌐 **Détection Automatique de Langue & Support Multilingue** :
-  * Détection automatique de la langue du smartphone ou navigateur (`navigator.languages` & en-tête `Accept-Language`).
-  * 5 langues supportées : **Français 🇫🇷, Anglais 🇬🇧, Portugais 🇵🇹, Espagnol 🇪🇸 et Allemand 🇩🇪**.
-* 📋 **Conformité Légale & Journal d'Audit (RGPD)** :
-  * Traçabilité obligatoire horodatée (IP cliente, adresse MAC, nom du visiteur, parrain, date d'émission et d'expiration).
-  * Modale de charte d'utilisation informatique intégrée et export conforme CSV/Excel (UTF-8) en un clic.
-* ⏱️ **Nettoyage Automatique & Alertes d'Expiration** :
-  * Tâche de fond révoquant automatiquement les clés échues sur la borne Aruba chaque minute.
-  * Notifications par e-mail avec alerte 15 minutes avant échéance et lien de prolongation rapide.
-* 🏢 **Parrainage d'Entreprise & Vérification OTP** :
-  * Possibilité de restreindre le parrainage aux domaines internes de la société (`@entreprise.com`).
-  * Option de vérification par code OTP e-mail à 6 chiffres.
-* 🤍 **Design Épuré "Minimalist White"** :
-  * Interface soignée basée sur Tailwind CSS, typographies *Plus Jakarta Sans* et *JetBrains Mono*, et icônes Lucide.
-  * Version responsive pour mobile, tablette, borne tactile d'accueil et impression au format voucher/A4.
+* 🔑 **Unique Wi-Fi Passphrase per Guest (MPSK)**: Each visitor receives their own unique, temporary WPA2/WPA3 credential generated on the fly. No shared static passwords or handwritten post-it notes.
+* 📱 **Instant Camera QR Code Connection (ZXing)**: Scannable natively by iOS and Android stock camera apps without any third-party software (`WIFI:T:WPA;S:...;P:...;;`).
+* ⚡ **Hardware Rate-Limiting (Aruba ASIC Shaper)**: Dedicated Aruba user roles enforce fair, strict per-client upload/download limits (`bandwidth-limit peruser`), processed directly by the AP hardware.
+* 🔒 **Multi-Tier Access Profiles**:
+  * **Standard (Free / Regular)**: Instant, zero-friction access for typical guests.
+  * **VIP / High-Speed**: Prioritized bandwidth tier protected by custom access codes or admin verification.
+  * **Customizable**: Dynamically create, edit, or delete bandwidth profiles straight from the admin UI.
+* 🛡️ **Enterprise Security & RBAC with 2FA TOTP**:
+  * Granular roles: **Admin** (full management), **Operator** (guest pass creation/extension), and **Auditor** (read-only compliance).
+  * Two-Factor Authentication via TOTP compatible with Google Authenticator, Microsoft Authenticator, Apple Passwords, and 1Password.
+* 📡 **Real-Time Connected Clients & 1-Click MAC Ban**:
+  * Live monitoring of connected clients (AP name, RSSI dBm, RX/TX traffic, connection duration).
+  * Instant hardware kick / disconnect and permanent MAC hardware blacklisting.
+* 🌐 **Automatic Device Language Detection & Multilingual Support**:
+  * Automatically detects visitor device language (`navigator.languages` & `Accept-Language` header).
+  * 5 languages fully supported: **English 🇬🇧, French 🇫🇷, Portuguese 🇵🇹, Spanish 🇪🇸, and German 🇩🇪**.
+* 📋 **Legal Compliance & GDPR Audit Trail**:
+  * Mandatory traceability recording client IP, exact timestamps, MAC address, sponsor, and issued key.
+  * Integrated terms of use acceptance modal compliant with data retention laws and GDPR.
+  * One-click compliant Excel UTF-8 CSV export.
+* ⏱️ **Automated Pass Expiry & Background Cleanup**:
+  * Background worker revoking expired credentials on Aruba hardware every minute.
+  * Automatic 15-minute expiration warning emails with one-click renewal links.
+* 🏢 **Corporate Host Sponsorship & OTP Validation**:
+  * Internal employee sponsorship with company email domain enforcement (`@company.com`).
+  * Optional or mandatory guest email validation via 6-digit one-time passcodes (OTP).
+* 🤍 **Pure-White Minimalist Design**:
+  * Clean UI engineered with *Plus Jakarta Sans*, *JetBrains Mono*, Tailwind CSS, and Lucide icons.
+  * Responsive layout optimized for smartphones, desktop kiosks, and thermal/A4 printing.
 
 ---
 
-## 🏗️ Architecture & Flux de Fonctionnement
+## 🏗️ Architecture & Workflow
 
 ```mermaid
 flowchart TD
-    subgraph Client ["Visiteur / Invité"]
-        Browser["Navigateur Web / Smartphone"]
-        Device["Client Wi-Fi (iOS / Android / PC)"]
+    subgraph Client ["Guest / Visitor"]
+        Browser["Web Browser / Smartphone"]
+        Device["Wi-Fi Station (iOS / Android / PC)"]
     end
 
-    subgraph Portal ["Portail Wi-Fi (FastAPI)"]
-        UI["Interface Web Responsive"]
-        API["API REST & Moteur de Sécurité"]
-        SQLite[("Base SQLite & Audit")]
-        Worker["Scheduler d'expiration"]
+    subgraph Portal ["Wi-Fi Portal (FastAPI)"]
+        UI["Responsive Web UI"]
+        API["REST API & Auth Engine"]
+        SQLite[("SQLite Database & Audit")]
+        Worker["Expiration Cleanup Worker"]
     end
 
-    subgraph Aruba ["Infrastructure Réseau"]
+    subgraph Aruba ["Network Infrastructure"]
         VC["Aruba Instant Virtual Controller\n(InstantOS CLI / SSH)"]
-        AP["Bornes Aruba Instant AP"]
+        AP["Aruba Instant Access Points"]
     end
 
-    Browser -->|"1. Accès au portail (GET /)"| UI
-    UI -->|"2. Choix profil & durée"| API
-    API -->|"3. Enregistrement pass & audit"| SQLite
-    API -->|"4. Injection clé MPSK via SSH (conf t)"| VC
-    VC -->|"5. Application profil & rôle de débit"| AP
-    API -->|"6. Affichage Voucher & QR Code"| Browser
-    Device -->|"7. Connexion Wi-Fi (WPA2/WPA3 MPSK)"| AP
-    Worker -->|"8. Révocation clés expirées"| VC
+    Browser -->|"1. Access Portal (GET /)"| UI
+    UI -->|"2. Select Profile & Duration"| API
+    API -->|"3. Record Pass & Audit Logs"| SQLite
+    API -->|"4. Provision MPSK Key via SSH (conf t)"| VC
+    VC -->|"5. Apply Profile & Bandwidth Role"| AP
+    API -->|"6. Display Voucher & QR Code"| Browser
+    Device -->|"7. Connect via Wi-Fi (WPA2/WPA3 MPSK)"| AP
+    Worker -->|"8. Purge Expired Credentials"| VC
 ```
 
 ---
 
-## 🐳 Déploiement Docker & Docker Compose
+## 🐳 Docker & Docker Compose Deployment
 
-Le projet est entièrement conteneurisé et prêt pour la production.
+The application is fully containerized and production-ready.
 
-### Configuration `docker-compose.yml`
+### `docker-compose.yml` Configuration
 
-Voici le fichier `docker-compose.yml` complet inclus dans le projet :
+Here is the complete `docker-compose.yml` file included in the repository:
 
 ```yaml
 version: '3.8'
@@ -121,191 +122,191 @@ services:
       - APP_PORT=${APP_PORT:-8000}
 ```
 
-### Volumes persistants :
-* **`./wifi_guest.db`** : Base SQLite stockant les pass, utilisateurs RBAC, secrets 2FA, journaux d'audit et paramètres dynamiques.
-* **`./profiles.json`** : Configuration des profils de débit et règles de bande passante.
-* **`./active_passes.json`** : État synchronisé des pass actifs.
-* **`./.env`** : Fichier contenant les identifiants et variables d'environnement.
+### Persistent Volumes:
+* **`./wifi_guest.db`**: SQLite database storing passes, RBAC accounts, 2FA secrets, audit trails, and dynamic settings.
+* **`./profiles.json`**: Access profile specifications and bandwidth contract rules.
+* **`./active_passes.json`**: Synchronized active pass state.
+* **`./.env`**: Environment file containing secrets and connection parameters.
 
-### Commandes usuelles Docker :
+### Common Docker Commands:
 
 ```bash
-# 1. Copier et configurer l'environnement
+# 1. Copy and configure environment variables
 cp .env.example .env
 
-# 2. Lancer le conteneur en arrière-plan
+# 2. Launch container in the background
 docker compose up -d
 
-# 3. Suivre les journaux du conteneur en direct
+# 3. Follow live container logs
 docker compose logs -f
 
-# 4. Redémarrer le conteneur après mise à jour
+# 4. Restart container after updates
 docker compose restart
 
-# 5. Arrêter le conteneur
+# 5. Stop container
 docker compose down
 ```
 
 > [!TIP]
-> **Option `network_mode: host`** : Si votre Virtual Controller Aruba est situé sur un VLAN d'administration dédié non routé depuis le pont Docker par défaut (`172.x`), vous pouvez ajouter `network_mode: host` dans votre service `wifi-guest` dans `docker-compose.yml` pour permettre un dialogue direct avec l'IP de la borne.
+> **`network_mode: host` Option**: If your Aruba Virtual Controller is located on a dedicated management subnet/VLAN that is not routed by default from Docker bridge (`172.x`), add `network_mode: host` to the `wifi-guest` service in `docker-compose.yml` for direct L3 communication with the AP.
 
 ---
 
-## 📁 Structure du Projet
+## 📁 Project Structure
 
 ```text
 ├── app/
-│   ├── aruba_client.py          # Pilotes Aruba Instant AP (SSH InstantOS) & Mode Simulation (Mock)
-│   ├── auth_service.py          # Gestionnaire RBAC, hachage PBKDF2 et double facteur TOTP 2FA
-│   ├── config.py                # Schémas de configuration (Pydantic Settings)
-│   ├── db.py                    # Persistance SQLite, tables d'audit et réglages dynamiques
-│   ├── main.py                  # Application FastAPI, routes Web et endpoints REST
-│   ├── models.py                # Modèles Pydantic pour les pass, profils et utilisateurs
-│   ├── notification_service.py  # Service SMTP pour e-mails de voucher et codes OTP
-│   ├── profile_manager.py       # Gestionnaire de profils de vitesse et rôles InstantOS
-│   ├── qr_generator.py          # Générateur universel de QR Code Wi-Fi (ZXing)
+│   ├── aruba_client.py          # Aruba Instant AP driver (InstantOS SSH) & Mock Homelab engine
+│   ├── auth_service.py          # RBAC authentication, PBKDF2 hashing, and TOTP 2FA engine
+│   ├── config.py                # Configuration schemas (Pydantic Settings)
+│   ├── db.py                    # SQLite persistence, audit trails, and dynamic settings
+│   ├── main.py                  # FastAPI application, Web routes, and REST endpoints
+│   ├── models.py                # Pydantic data models for passes, profiles, and users
+│   ├── notification_service.py  # SMTP notification service for vouchers and OTP emails
+│   ├── profile_manager.py       # Speed profile manager & InstantOS role mapping
+│   ├── qr_generator.py          # Universal ZXing Wi-Fi QR Code generator
 │   └── templates/
-│       ├── base.html            # Gabarit principal avec détection et I18N multilingue
-│       ├── index.html           # Portail invité & console d'administration unifiée
-│       ├── view.html            # Voucher individuel prêt à l'impression
-│       └── extend.html          # Page de prolongation d'accès
+│       ├── base.html            # Main layout with I18N language switcher (EN/FR/PT/ES/DE)
+│       ├── index.html           # Guest portal & unified admin management console
+│       ├── view.html            # Printable individual voucher page
+│       └── extend.html          # Pass extension self-service page
 ├── docs/
-│   └── screenshots/             # Captures d'écran de l'interface
+│   └── screenshots/             # High-resolution interface screenshots
 ├── tests/
-│   └── test_app.py              # Suite complète de tests unitaires et d'intégration
-├── ARUBA_IAP_CONFIGURATION.md   # Guide complet pas à pas pour configurer la borne Aruba
-├── aruba_iap_setup.cli          # Script CLI prêt à injecter dans la borne (conf t)
-├── Dockerfile                   # Image Docker Debian Python 3.11-slim
-├── docker-compose.yml           # Déploiement Docker Compose
-├── requirements.txt             # Dépendances Python
-├── profiles.json                # Spécification par défaut des profils de débit
-├── .env.example                 # Modèle de variables d'environnement
-├── CONTRIBUTING.md              # Guide de contribution
-└── LICENSE                      # Licence MIT
+│   └── test_app.py              # Full unit and integration test suite (Pytest)
+├── ARUBA_IAP_CONFIGURATION.md   # Step-by-step Aruba Instant AP setup guide
+├── aruba_iap_setup.cli          # Ready-to-paste CLI configuration script (conf t)
+├── Dockerfile                   # Debian Python 3.11-slim container image
+├── docker-compose.yml           # One-click Docker Compose deployment
+├── requirements.txt             # Python dependencies
+├── profiles.json                # Default access profile specifications
+├── .env.example                 # Sanitized environment template
+├── CONTRIBUTING.md              # Contributor guidelines
+└── LICENSE                      # MIT Open Source License
 ```
 
 ---
 
-## ⚙️ Configuration de la Borne Aruba Instant AP
+## ⚙️ Aruba Access Point Configuration
 
-Pour la configuration réseau de la borne Aruba Instant AP :
+For network configuration and Aruba Instant AP parameters:
 
-* 📖 **[ARUBA_IAP_CONFIGURATION.md](./ARUBA_IAP_CONFIGURATION.md)** : Guide exhaustif (explications CLI, WebUI, règles de pare-feu ACL, VLANs et commandes de vérification).
-* ⚙️ **[aruba_iap_setup.cli](./aruba_iap_setup.cli)** : Script CLI prêt à être copié-collé dans le terminal d'administration de la borne (`conf t`).
+* 📖 **[ARUBA_IAP_CONFIGURATION.md](./ARUBA_IAP_CONFIGURATION.md)**: Detailed step-by-step guide (CLI, WebUI, firewall ACLs, VLANs, and verification commands).
+* ⚙️ **[aruba_iap_setup.cli](./aruba_iap_setup.cli)**: Ready-to-paste CLI configuration script (`conf t`).
 
-Principe de fonctionnement avec InstantOS :
-1. Définition du profil MPSK local : `wlan mpsk-local Guest-MPSK`
-2. Liaison au SSID invité : `opmode mpsk-local`
-3. Création des rôles avec contrat de bande passante : `wlan access-rule Guest-VIP` / `bandwidth-limit peruser ...`
-4. Synchronisation automatique des passphrases par le portail via SSH : `mpsk-local-passphrase <guest_id> <password> <role>`
+InstantOS operational workflow:
+1. Define local MPSK profile: `wlan mpsk-local Guest-MPSK`
+2. Bind to guest SSID: `opmode mpsk-local`
+3. Configure roles with bandwidth contracts: `wlan access-rule Guest-VIP` / `bandwidth-limit peruser ...`
+4. Automated passphrase provisioning over SSH: `mpsk-local-passphrase <guest_id> <password> <role>`
 
 ---
 
-## 🚀 Démarrage Rapide en Local
+## 🚀 Local Quick Start
 
-### 1. Cloner le dépôt et créer l'environnement virtuel
+### 1. Clone repository & create virtual environment
 
 ```bash
 git clone https://github.com/wybaux/aruba-mpsk-guest-portal.git
 cd aruba-mpsk-guest-portal
 
-# Créer un environnement virtuel
+# Create virtual environment
 python -m venv .venv
 
-# Activer l'environnement :
-# Windows (PowerShell) :
+# Activate environment:
+# On Windows (PowerShell):
 .\.venv\Scripts\Activate.ps1
-# Linux / macOS :
+# On Linux / macOS:
 source .venv/bin/activate
 
-# Installer les dépendances
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Définir les variables d'environnement
+### 2. Configure environment variables
 
-Copiez `.env.example` en `.env` :
+Copy `.env.example` to `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Paramètres clés :
+Key configuration parameters:
 ```dotenv
-# Paramètres généraux
-APP_TITLE=Wi-Fi Invités Homelab
+# General Settings
+APP_TITLE=Wi-Fi Guest Portal
 APP_HOST=0.0.0.0
 APP_PORT=8000
-SECRET_KEY=cle_secrete_a_changer_en_production
-ADMIN_PASSWORD=votre_mot_de_passe_admin
+SECRET_KEY=change_this_secret_key_in_production
+ADMIN_PASSWORD=your_admin_password
 
-# Réseau Wi-Fi
+# Wi-Fi SSID
 WIFI_SSID=Public-Test
 
-# Langue par défaut (fr, en, pt, es, de)
-DEFAULT_LANGUAGE=fr
+# Default Language (en, fr, pt, es, de)
+DEFAULT_LANGUAGE=en
 
-# Mode d'intégration Aruba
-# instant = Borne physique Instant AP connectée via SSH
-# mock    = Simulation locale autonome (idéal dev / test)
+# Aruba Mode
+# instant = Physical AP connected via SSH
+# mock    = Offline local simulation (ideal for dev & testing)
 ARUBA_MODE=instant
 ARUBA_INSTANT_HOST=https://10.10.30.4:4343
 ARUBA_INSTANT_USERNAME=admin
-ARUBA_INSTANT_PASSWORD=mot_de_passe_borne
+ARUBA_INSTANT_PASSWORD=your_ap_password
 ARUBA_INSTANT_VERIFY_SSL=false
 ARUBA_MPSK_PROFILE=Guest-MPSK
 ```
 
-### 3. Lancer l'application
+### 3. Run the application
 
 ```bash
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Accédez aux interfaces dans votre navigateur :
-* **Portail Invités** : `http://localhost:8000/`
-* **Console d'Administration** : `http://localhost:8000/#admin`
-* **Gestion des Profils de Débit** : `http://localhost:8000/?tab=profiles`
-* **Gestion des Utilisateurs RBAC** : `http://localhost:8000/?tab=users`
-* **Documentation Interactive OpenAPI / Swagger** : `http://localhost:8000/docs`
+Open your browser:
+* **Guest Portal**: `http://localhost:8000/`
+* **Admin Console**: `http://localhost:8000/#admin`
+* **Bandwidth Profiles**: `http://localhost:8000/?tab=profiles`
+* **User Management**: `http://localhost:8000/?tab=users`
+* **Interactive OpenAPI Specs**: `http://localhost:8000/docs`
 
 ---
 
-## 🔌 Endpoints API REST Principaux
+## 🔌 Main REST API Endpoints
 
-| Méthode | Route | Description |
+| Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/` | Portail HTML responsive pour visiteurs et console d'administration |
-| `POST` | `/api/guests` | Création programmatique d'un pass invité avec génération de MPSK |
-| `GET` | `/api/guests` | Liste de tous les pass actifs avec temps restant |
-| `DELETE` | `/api/guests/{id}` | Révocation immédiate d'un pass invité et suppression de sa clé MPSK |
-| `GET` | `/guest/{id}/qr.png` | Génération de l'image PNG haute résolution du QR Code Wi-Fi |
-| `GET` | `/api/profiles` | Liste des profils de bande passante et statuts de protection |
-| `POST` | `/api/auth/login` | Connexion utilisateur RBAC (étape 1 mot de passe, étape 2 TOTP/MFA) |
-| `GET` | `/api/admin/clients` | Liste des stations Wi-Fi connectées en direct |
-| `POST` | `/api/admin/clients/disconnect` | Déconnexion forcée (*kick*) d'un appareil par son adresse MAC |
-| `POST` | `/api/admin/clients/blacklist` | Bannissement matériel permanent d'une adresse MAC |
+| `GET` | `/` | Responsive HTML guest portal and admin management console |
+| `POST` | `/api/guests` | Programmatic guest pass creation with unique MPSK key |
+| `GET` | `/api/guests` | List all active guest passes with remaining validity |
+| `DELETE` | `/api/guests/{id}` | Instant pass revocation and MPSK passphrase removal |
+| `GET` | `/guest/{id}/qr.png` | High-resolution PNG Wi-Fi QR Code generation |
+| `GET` | `/api/profiles` | List bandwidth tiers and protection statuses |
+| `POST` | `/api/auth/login` | RBAC authentication (Step 1 password, Step 2 TOTP/MFA) |
+| `GET` | `/api/admin/clients` | Live list of currently connected Wi-Fi stations |
+| `POST` | `/api/admin/clients/disconnect` | Forceful client disconnect (*kick*) by MAC address |
+| `POST` | `/api/admin/clients/blacklist` | Permanent hardware blacklisting by MAC address |
 
 ---
 
-## 🧪 Tests & Qualité de Code
+## 🧪 Tests & Code Quality
 
-La suite de tests automatisée valide l'intégralité du cycle de vie des pass, l'authentification RBAC avec TOTP 2FA, les profils de débit et les scénarios de secours :
+The automated test suite verifies the complete pass lifecycle, RBAC authentication with TOTP 2FA, bandwidth profiles, and fallback scenarios:
 
 ```bash
 python -m pytest tests/test_app.py -v
 ```
 
-> **Résultat** : 19 tests validés avec succès (100% de réussite).
+> **Test Summary**: 19 passed (100% pass rate).
 
 ---
 
-## 🤝 Contribution
+## 🤝 Contributing
 
-Les contributions, suggestions et retours d'expérience sont les bienvenus ! Consultez le fichier **[CONTRIBUTING.md](./CONTRIBUTING.md)** pour les consignes de développement.
+Contributions, issues, and feature requests are welcome! Check **[CONTRIBUTING.md](./CONTRIBUTING.md)** for development guidelines.
 
 ---
 
-## 📄 Licence
+## 📄 License
 
-Ce projet est distribué sous licence open-source **MIT**. Consultez le fichier **[LICENSE](./LICENSE)** pour plus de précisions.
+This project is licensed under the **MIT License**. See **[LICENSE](./LICENSE)** for details.
