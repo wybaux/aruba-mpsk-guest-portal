@@ -19,6 +19,7 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def reset_settings_fixture():
+    orig_settings = db.get_all_settings()
     db.set_setting("require_otp_verification", False)
     db.set_setting("require_guest_email", False)
     db.set_setting("allowed_sponsor_domains", "")
@@ -27,13 +28,8 @@ def reset_settings_fixture():
     db.set_setting("wifi_ssid", "Public-Test")
     db.set_setting("wifi_password", "")
     yield
-    db.set_setting("require_otp_verification", False)
-    db.set_setting("require_guest_email", False)
-    db.set_setting("allowed_sponsor_domains", "")
-    db.set_setting("smtp_host", "")
-    db.set_setting("duration_presets", [1, 2, 4, 8, 24])
-    db.set_setting("wifi_ssid", "Public-Test")
-    db.set_setting("wifi_password", "")
+    for k, v in orig_settings.items():
+        db.set_setting(k, v)
 
 def test_qr_generator():
     wifi_str = build_wifi_qr_string("TestSSID", "SecretPass123", "WPA")
@@ -422,14 +418,41 @@ def test_rbac_user_management_and_mfa():
     assert "access_token" in v_data
     assert v_data["user"]["username"] == test_uname
 
-    # 10. Update user (change full_name and deactivate MFA)
+    # 10. Update user password using 'password' (frontend payload format)
     update_resp = client.put(f"/api/admin/users/{user_id}", json={
+        "password": "BrandNewPassword456!",
         "full_name": "Test Opérateur Modifié",
         "mfa_enabled": False
     })
     assert update_resp.status_code == 200
     assert update_resp.json()["full_name"] == "Test Opérateur Modifié"
     assert update_resp.json()["mfa_enabled"] is False
+
+    # Old password must now be rejected
+    old_login = client.post("/api/auth/login", json={
+        "username": test_uname,
+        "password": "SecurePassword123!"
+    })
+    assert old_login.status_code == 401
+
+    # New password must be accepted
+    new_login = client.post("/api/auth/login", json={
+        "username": test_uname,
+        "password": "BrandNewPassword456!"
+    })
+    assert new_login.status_code == 200
+    assert new_login.json()["success"] is True
+
+    # 10b. Also verify 'new_password' format
+    update_new_pwd = client.put(f"/api/admin/users/{user_id}", json={
+        "new_password": "EvenNewerPassword789!"
+    })
+    assert update_new_pwd.status_code == 200
+    login_even_newer = client.post("/api/auth/login", json={
+        "username": test_uname,
+        "password": "EvenNewerPassword789!"
+    })
+    assert login_even_newer.status_code == 200
 
     # 11. Delete test user
     del_resp = client.delete(f"/api/admin/users/{user_id}")

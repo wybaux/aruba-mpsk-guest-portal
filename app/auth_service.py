@@ -51,6 +51,7 @@ class UpdateUserSchema(BaseModel):
     mfa_enabled: Optional[bool] = None
     mfa_type: Optional[str] = None
     new_password: Optional[str] = None
+    password: Optional[str] = None
 
 class LoginPayload(BaseModel):
     username: str
@@ -230,8 +231,12 @@ class AuthService:
         if payload.mfa_type is not None:
             updates.append("mfa_type = ?")
             params.append(payload.mfa_type)
-        if payload.new_password and payload.new_password.strip():
-            p_hash, p_salt = self.hash_password(payload.new_password.strip())
+        pwd = payload.new_password if payload.new_password is not None else payload.password
+        if pwd is not None and pwd.strip():
+            clean_pwd = pwd.strip()
+            if len(clean_pwd) < 6:
+                raise ValueError("Le mot de passe doit comporter au moins 6 caractères.")
+            p_hash, p_salt = self.hash_password(clean_pwd)
             updates.append("password_hash = ?")
             params.append(p_hash)
             updates.append("password_salt = ?")

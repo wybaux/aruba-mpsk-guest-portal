@@ -2515,11 +2515,14 @@
         lucide.createIcons();
     }
 
-    // Auto-switch to tabs if URL hash is present
-    if (window.location.hash === '#profiles') {
+    // Auto-switch to tabs if URL hash or ?tab= query is present
+    const urlParams = new URLSearchParams(window.location.search);
+    if (window.location.hash === '#profiles' || urlParams.get('tab') === 'profiles') {
         setTimeout(() => switchTab('profiles'), 50);
-    } else if (window.location.hash === '#users') {
+    } else if (window.location.hash === '#users' || urlParams.get('tab') === 'users') {
         setTimeout(() => switchTab('users'), 50);
+    } else if (window.location.hash === '#admin' || urlParams.get('tab') === 'admin' || urlParams.get('tab') === 'clients') {
+        setTimeout(() => switchTab('admin'), 50);
     }
 
     // Quick Duration Selection
@@ -2870,6 +2873,7 @@
         document.getElementById('usr_role').value = user.role;
         document.getElementById('usr_password').value = '';
         document.getElementById('usr_password').required = false;
+        document.getElementById('usr_password').placeholder = 'Laisser vide pour conserver';
         document.getElementById('pwdOptionalNotice').textContent = '(Optionnel)';
         document.getElementById('usr_is_active').checked = user.is_active;
         document.getElementById('userErrorMsg').classList.add('hidden');
@@ -2935,7 +2939,8 @@
                     is_active: isActive
                 };
                 if (password && password.trim()) {
-                    payload.password = password;
+                    payload.password = password.trim();
+                    payload.new_password = password.trim();
                 }
                 res = await fetch(`/api/admin/users/${userId}`, {
                     method: 'PUT',

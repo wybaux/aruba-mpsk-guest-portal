@@ -53,8 +53,7 @@ wlan ssid-profile <SSID_NAME>
  inact-def-timeout 0
  max-authentication-failures 0
 
-exit
-exit
+end
 
 ! -----------------------------------------------------------------------------
 ! 4. Application & Sauvegarde immédiate dans la mémoire Flash du contrôleur

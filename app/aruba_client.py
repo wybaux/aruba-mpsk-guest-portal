@@ -25,6 +25,12 @@ def generate_random_password(length: int = 10) -> str:
 class BaseArubaClient(abc.ABC):
     """Abstract base class for Wi-Fi network API clients."""
 
+    @property
+    def ssid(self) -> str:
+        """Nom SSID configuré pour le réseau invité."""
+        return db.get_setting("wifi_ssid", getattr(settings, "WIFI_SSID", "Public-Test")) or "Public-Test"
+
+
     @abc.abstractmethod
     def create_guest_pass(
         self,
@@ -516,12 +522,13 @@ class ArubaInstantClient(MockArubaClient):
                 logger.info(f"[Aruba Instant CLI] Revoked {username}: {out_pass.strip()}")
             else:
                 pass_cmd = f"mpsk-local-passphrase {username} {password}"
-                # If a role is provided, try with role first
-                if role_name and role_name.strip() and role_name.strip().lower() not in ("standard", "guest-standard", "default"):
-                    cmd_with_role = f"mpsk-local-passphrase {username} {password} {role_name.strip()}"
+                # If a role is provided, apply it to the MPSK passphrase
+                if role_name and role_name.strip():
+                    target_role = role_name.strip()
+                    cmd_with_role = f"mpsk-local-passphrase {username} {password} {target_role}"
                     out_pass = _send_cmd(cmd_with_role)
                     if any(err in out_pass.lower() for err in ("invalid", "error", "not found", "^")):
-                        logger.warning(f"[Aruba Instant CLI] Role '{role_name}' refused by AP ({out_pass.strip()}), falling back to default role")
+                        logger.warning(f"[Aruba Instant CLI] Role '{target_role}' refused by AP ({out_pass.strip()}), falling back without role")
                         out_pass = _send_cmd(pass_cmd)
                 else:
                     out_pass = _send_cmd(pass_cmd)

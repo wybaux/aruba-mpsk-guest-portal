@@ -137,6 +137,14 @@ class ProfileManager:
         # Master Admin Password always authorizes any profile
         if settings.ADMIN_PASSWORD and password.strip() == settings.ADMIN_PASSWORD.strip():
             return True
+        # Check active database admin user password
+        try:
+            from app.auth_service import auth_service
+            admin_u = auth_service.get_user_by_username("admin")
+            if admin_u and auth_service.verify_password(password.strip(), admin_u["password_hash"], admin_u["password_salt"]):
+                return True
+        except Exception:
+            pass
         return False
 
     def save_profile(self, profile: AccessProfileInfo, sync_to_ap: bool = True) -> AccessProfileInfo:
@@ -171,72 +179,148 @@ class ProfileManager:
 
         return profile
 
-    def delete_profile(self, profile_id: str) -> bool:
+    def get_by_role_name(self, role_name: str) -> Optional[AccessProfileInfo]:
+        r_clean = role_name.strip().lower()
+        for p in self._profiles.values():
+            if p.get_role_name().lower() == r_clean or (p.role_name and p.role_name.strip().lower() == r_clean):
+                return p
+        return None
+
+    def delete_profile(self, profile_id: str, sync_to_ap: bool = True) -> bool:
         pid = profile_id.lower().strip()
         if pid in self._profiles and len(self._profiles) > 1:
             was_default = self._profiles[pid].is_default
+            prof_to_delete = self._profiles[pid]
+            role_to_delete = prof_to_delete.get_role_name()
             removed = self._profiles.pop(pid)
             if was_default and self._profiles:
                 next(iter(self._profiles.values())).is_default = True
             self._save()
             logger.info(f"Deleted profile '{pid}'")
+            if sync_to_ap and role_to_delete:
+                self.delete_role_from_aruba(role_to_delete)
             return True
         return False
 
     def sync_role_to_aruba(self, profile: AccessProfileInfo) -> bool:
         """Sync access-rule bandwidth limit and VLAN to Aruba Instant AP Virtual Controller."""
-        if settings.ARUBA_MODE.lower() != "instant" or not settings.ARUBA_INSTANT_HOST:
-            return True
-
         try:
-            import paramiko
+            from app.aruba_client import get_aruba_config, _ssh_connect_iap
             import urllib.parse
             import time
 
-            parsed = urllib.parse.urlparse(settings.ARUBA_INSTANT_HOST)
-            ip = parsed.hostname or settings.ARUBA_INSTANT_HOST.replace("https://", "").replace("http://", "").split(":")[0]
+            cfg = get_aruba_config()
+            if (cfg.get("mode") or "").lower() != "instant" or not cfg.get("host"):
+                return True
+
+            parsed = urllib.parse.urlparse(cfg["host"])
+            ip = parsed.hostname or cfg["host"].replace("https://", "").replace("http://", "").split(":")[0].strip()
+            user = cfg.get("username") or "admin"
+            pwd = cfg.get("password") or ""
 
             role_name = profile.get_role_name()
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(
-                ip, port=22,
-                username=settings.ARUBA_INSTANT_USERNAME or "admin",
-                password=settings.ARUBA_INSTANT_PASSWORD or "",
-                timeout=10, look_for_keys=False, allow_agent=False
-            )
+            client = _ssh_connect_iap(ip, user, pwd, port=22, timeout=10)
             channel = client.invoke_shell()
-            time.sleep(1)
-            while channel.recv_ready():
-                channel.recv(4096)
+            channel.send("\n")
 
-            cmds = [
-                "conf t",
-                f"wlan access-rule {role_name}",
-                f"vlan {profile.vlan_id}"
-            ]
+            start_t = time.time()
+            prompt_buf = ""
+            while not any(p in prompt_buf for p in ("#", ">")) and (time.time() - start_t) < 5:
+                if channel.recv_ready():
+                    prompt_buf += channel.recv(4096).decode("utf-8", errors="ignore")
+                time.sleep(0.04)
+
+            def _send_cmd(cmd: str, timeout: float = 3.5) -> str:
+                channel.send(cmd + "\n")
+                t0 = time.time()
+                buf = ""
+                while (time.time() - t0) < timeout:
+                    if channel.recv_ready():
+                        chunk = channel.recv(4096).decode("utf-8", errors="ignore")
+                        buf += chunk
+                        if any(p in buf for p in ("#", ">", "committed", "commit")):
+                            break
+                    time.sleep(0.04)
+                return buf
+
+            _send_cmd("conf t")
+            _send_cmd(f"wlan access-rule {role_name}")
+
+            if profile.vlan_id and profile.vlan_id > 0:
+                _send_cmd(f"vlan {profile.vlan_id}")
 
             if profile.bandwidth_limit_mbps and profile.bandwidth_limit_mbps > 0:
                 kbps = int(profile.bandwidth_limit_mbps * 1000)
-                cmds.append(f"bandwidth-limit peruser downstream {kbps}")
-                cmds.append(f"bandwidth-limit peruser upstream {kbps}")
+                _send_cmd(f"bandwidth-limit peruser downstream {kbps}")
+                _send_cmd(f"bandwidth-limit peruser upstream {kbps}")
             else:
-                cmds.append("no bandwidth-limit peruser downstream")
-                cmds.append("no bandwidth-limit peruser upstream")
+                _send_cmd("no bandwidth-limit peruser downstream")
+                _send_cmd("no bandwidth-limit peruser upstream")
 
-            cmds.append("rule any any match any any any permit")
-            cmds.extend(["exit", "exit", "commit apply"])
-
-            for c in cmds:
-                channel.send(c + "\n")
-                time.sleep(0.5 if "commit" not in c else 2.5)
+            _send_cmd("rule any any match any any any permit")
+            _send_cmd("end")
+            out_commit = _send_cmd("commit apply", timeout=8.0)
 
             channel.close()
             client.close()
-            logger.info(f"[Aruba AP] Synced role '{role_name}' (BW: {profile.bandwidth_limit_mbps} Mbps, VLAN: {profile.vlan_id}) to {ip}")
+            elapsed = time.time() - start_t
+            logger.info(f"[Aruba AP] Successfully synced role '{role_name}' (BW: {profile.bandwidth_limit_mbps} Mbps, VLAN: {profile.vlan_id}) to {ip} in {elapsed:.2f}s")
             return True
         except Exception as e:
             logger.warning(f"[Aruba AP] Failed to sync role '{profile.name}' to AP: {e}")
+            return False
+
+    def delete_role_from_aruba(self, role_name: str) -> bool:
+        """Delete access-rule from Aruba Instant AP Virtual Controller."""
+        try:
+            from app.aruba_client import get_aruba_config, _ssh_connect_iap
+            import urllib.parse
+            import time
+
+            cfg = get_aruba_config()
+            if (cfg.get("mode") or "").lower() != "instant" or not cfg.get("host"):
+                return True
+
+            parsed = urllib.parse.urlparse(cfg["host"])
+            ip = parsed.hostname or cfg["host"].replace("https://", "").replace("http://", "").split(":")[0].strip()
+            user = cfg.get("username") or "admin"
+            pwd = cfg.get("password") or ""
+
+            client = _ssh_connect_iap(ip, user, pwd, port=22, timeout=10)
+            channel = client.invoke_shell()
+            channel.send("\n")
+
+            start_t = time.time()
+            prompt_buf = ""
+            while not any(p in prompt_buf for p in ("#", ">")) and (time.time() - start_t) < 5:
+                if channel.recv_ready():
+                    prompt_buf += channel.recv(4096).decode("utf-8", errors="ignore")
+                time.sleep(0.04)
+
+            def _send_cmd(cmd: str, timeout: float = 3.5) -> str:
+                channel.send(cmd + "\n")
+                t0 = time.time()
+                buf = ""
+                while (time.time() - t0) < timeout:
+                    if channel.recv_ready():
+                        chunk = channel.recv(4096).decode("utf-8", errors="ignore")
+                        buf += chunk
+                        if any(p in buf for p in ("#", ">", "committed", "commit")):
+                            break
+                    time.sleep(0.04)
+                return buf
+
+            _send_cmd("conf t")
+            _send_cmd(f"no wlan access-rule {role_name}")
+            _send_cmd("end")
+            _send_cmd("commit apply", timeout=8.0)
+
+            channel.close()
+            client.close()
+            logger.info(f"[Aruba AP] Deleted role '{role_name}' from VC {ip}")
+            return True
+        except Exception as e:
+            logger.warning(f"[Aruba AP] Failed to delete role '{role_name}' from AP: {e}")
             return False
 
 # Global instance

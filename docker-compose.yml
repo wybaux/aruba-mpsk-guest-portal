@@ -13,6 +13,7 @@ services:
       - ./app:/app/app
       - ./wifi_guest.db:/app/wifi_guest.db
       - ./active_passes.json:/app/active_passes.json
+      - ./profiles.json:/app/profiles.json
     environment:
       - APP_HOST=0.0.0.0
       - APP_PORT=${APP_PORT:-8000}

@@ -87,8 +87,7 @@ wlan ssid-profile <SSID_NAME>
  inact-def-timeout 0
  max-authentication-failures 0
 
-exit
-exit
+end
 
 ! =============================================================================
 ! 4. Enregistrement en mémoire Flash
@@ -97,10 +96,11 @@ commit apply
 ```
 
 > **Note importante** : La commande `bandwidth-limit peruser` configure un contrat de bande passante alloué **séparément à chaque client connecté**, sans partager le quota entre plusieurs invités.
+> **Note sur le profil MPSK** : Le nom défini dans `wlan mpsk-local <MPSK_PROFILE>` et référencé dans le SSID via `mpsk-local <MPSK_PROFILE>` **doit correspondre exactement** à la variable `ARUBA_MPSK_PROFILE` dans votre configuration (ex: `Guest-MPSK` ou `MPSK_GUEST`).
 
 ---
 
-## 4. Liaison avec l'Application Web (`.env`)
+## 4. Liaison avec l'Application Web (`.env` & Docker)
 
 Dans le fichier `.env` de l'application Wi-Fi Invité, renseignez les paramètres correspondants :
 
@@ -111,19 +111,25 @@ ARUBA_INSTANT_HOST=https://<IP_VIRTUELLE_CONTROLEUR_AP>:4343
 ARUBA_INSTANT_USERNAME=admin
 ARUBA_INSTANT_PASSWORD=<VOTRE_MOT_DE_PASSE_ADMIN_AP>
 ARUBA_INSTANT_VERIFY_SSL=false
-ARUBA_MPSK_PROFILE=MPSK_GUEST
+ARUBA_MPSK_PROFILE=Guest-MPSK
 
 # SSID et Paramètres par défaut
 WIFI_SSID=<SSID_NAME>
 ADMIN_PASSWORD=<VOTRE_MOT_DE_PASSE_PORTAIL_ADMIN>
 ```
 
+> [!IMPORTANT]
+> **Déploiement Docker (`docker-compose.yml`)** :
+> 1. Montez impérativement le fichier `profiles.json` en volume (`- ./profiles.json:/app/profiles.json`) pour conserver les profils personnalisés entre les redémarrages de conteneur.
+> 2. Si votre borne Aruba se trouve sur un sous-réseau routé ou un VLAN dédié (ex: `10.10.30.0/24`), assurez-vous que le conteneur Docker a bien accès à cette plage IP. Si le réseau Docker Bridge `172.x` ne route pas vers l'IP de l'AP, utilisez `network_mode: host` dans `docker-compose.yml`.
+
 L'application interagira automatiquement avec la borne via SSH pour :
-- Ajouter dynamiquement les clés lors de la création d'un invité :  
+- Ajouter dynamiquement les clés avec leur rôle de vitesse lors de la création d'un invité :  
   `mpsk-local-passphrase <guest_id> <password> <role_name>`
 - Supprimer automatiquement les clés arrivées à expiration :  
   `no mpsk-local-passphrase <guest_id>`
-- Créer ou modifier à chaud les règles de bande passante depuis l'interface web Admin.
+- Créer ou modifier à chaud les règles de bande passante (`wlan access-rule`) et les contrats Datapath ASIC (`bandwidth-limit peruser`) depuis l'interface web Admin.
+- Supprimer proprement les règles d'accès du contrôleur virtuel (`no wlan access-rule <role_name>`) lors de la suppression d'un profil.
 
 ---
 

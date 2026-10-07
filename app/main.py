@@ -392,7 +392,7 @@ async def admin_save_profile_form(
 
 @app.post("/admin/profiles/{profile_id}/delete", response_class=HTMLResponse)
 async def admin_delete_profile_form(profile_id: str):
-    profile_manager.delete_profile(profile_id)
+    profile_manager.delete_profile(profile_id, sync_to_ap=True)
     return RedirectResponse(url="/?tab=profiles", status_code=status.HTTP_303_SEE_OTHER)
 
 @app.post("/guest/{guest_id}/revoke", response_class=HTMLResponse)
@@ -904,10 +904,13 @@ async def api_admin_create_user(payload: CreateUserSchema, request: Request):
 async def api_admin_update_user(user_id: int, payload: UpdateUserSchema, request: Request):
     current = get_current_user_from_request(request)
     actor = current["username"] if current else "admin"
-    updated = auth_service.update_user(user_id, payload, actor=actor)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
-    return updated
+    try:
+        updated = auth_service.update_user(user_id, payload, actor=actor)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/api/admin/users/{user_id}")
 async def api_admin_delete_user(user_id: int, request: Request):
