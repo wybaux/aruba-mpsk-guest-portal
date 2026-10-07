@@ -1,8 +1,5 @@
 # Contributing Guidelines
 
-[![Contributors](https://img.shields.io/badge/contributors-wybaux%20%7C%20Antigravity-blueviolet.svg)](README.md#-authors--contributors)
-[![AI Pair Programmer](https://img.shields.io/badge/AI%20Pair%20Programmer-Antigravity-4285F4.svg?logo=google&logoColor=white)](https://deepmind.google/)
-
 Thank you for your interest in contributing to **Enterprise & Homelab Guest Wi-Fi (Aruba Instant MPSK)**! This guide will help you participate effectively in development, documentation improvements, and bug reporting.
 
 ---
